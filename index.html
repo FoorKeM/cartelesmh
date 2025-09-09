@@ -1,0 +1,3522 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>PRECIOS — TODO EN UNO</title>
+<style>
+  :root{ --border:#13479c; --muted:#94a3b8; --text:#e5e7eb; }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;background:#000;color:var(--text)}
+  #menu{display:flex;align-items:center;justify-content:center;height:100vh;padding:24px;background:#1f4186}
+  #menu[hidden]{display:none!important}
+  .card{width:min(960px,92vw);background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:16px;padding:24px}
+  .choices{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-top:18px}
+  .choice{display:flex;align-items:center;justify-content:center;gap:10px;padding:18px 16px;border-radius:14px;background:linear-gradient(180deg,#0d1b2a,#0b1220);border:1px solid #1f2a44;cursor:pointer;font-weight:800;font-size:18px;color:var(--text)}
+  .choice:hover{filter:brightness(1.05);border-color:#2b3a60;transform:translateY(-1px)}
+  .hint{margin-top:14px;color:var(--muted);font-size:12px}
+  #viewer[hidden]{display:none!important}
+  #viewer{position:fixed;inset:0;background:#000}
+  #frame{position:fixed;inset:0;width:100vw;height:100vh;border:0;background:transparent}
+  .switcher{position:fixed; right:14px; bottom:calc(24px + env(safe-area-inset-bottom)); display:flex; flex-direction:column; gap:10px; padding:8px; background:transparent; border:0; z-index:1100;}
+  .pill{display:flex; align-items:center; justify-content:center; gap:10px; min-width:170px; text-align:center; padding:12px 16px; border-radius:9999px; border:0; color:var(--text); font-weight:800; letter-spacing:.2px; cursor:pointer; background:linear-gradient(180deg,#0f172a 0%, #0b1220 100%); box-shadow:0 10px 28px rgba(0,0,0,.55), 0 0 0 1px rgba(148,163,184,.14) inset, 0 1px 0 rgba(255,255,255,.06) inset; backdrop-filter: blur(4px); transition: filter .15s ease, transform .15s ease, box-shadow .15s ease;}
+  .pill:hover{ filter:brightness(1.06); transform:translateY(-1px) }
+  .pill[aria-current="true"]{ background:linear-gradient(180deg,#0b1f33 0%, #0a192a 100%); box-shadow:0 10px 28px rgba(2,132,199,.30), 0 0 0 1px rgba(56,189,248,.45) inset, 0 1px 0 rgba(255,255,255,.08) inset; }
+  .back{ min-width:170px }
+  @media (max-width: 800px){ .pill{min-width:140px; font-size:14px; padding:10px 12px} .choices{grid-template-columns:1fr} }
+  @media print { #menu, .switcher, #personalOverlay { display:none !important; } #viewer { position:static; } #frame { position:static; width:100vw; height:100vh; } }
+
+  /* Overlay Personal */
+  #personalOverlay[hidden]{ display:none !important; }
+  #personalOverlay{ position:fixed; inset:0; z-index:1200; background:#1f4186; display:flex; align-items:center; justify-content:center; padding:24px; }
+  #personalFrame{ width:min(1100px,96vw); height:min(700px,92vh); border:0; background:transparent; }
+</style>
+</head>
+<body>
+<main id="menu">
+  <div class="card">
+    <h2>Elige el módulo</h2>
+    <p>Se abrirá a pantalla completa. Podrás cambiar con los botones flotantes.</p>
+    <div class="choices">
+      <button class="choice" data-name="GÓNDOLA">🛒 GÓNDOLA</button>
+      <button class="choice" data-name="PALLET">📦 PALLET</button>
+      <button class="choice" data-name="PERSONAL">🧑 PERSONAL</button>
+    </div>
+    <p class="hint">“PERSONAL” se abre en este mismo menú. El cierre se hace con “Cancelar” o “Cerrar” del propio gestor.</p>
+  </div>
+</main>
+
+<section id="viewer" hidden>
+  <iframe id="frame" srcdoc=""></iframe>
+  <div class="switcher" role="tablist" aria-label="Cambiar módulo">
+    <button id="btnBack" class="pill back" title="Volver al menú">⬅️ MENÚ PRINCIPAL</button>
+    <button id="btnG" class="pill" role="tab" aria-selected="false" aria-current="false">🛒 GÓNDOLA</button>
+    <button id="btnP" class="pill" role="tab" aria-selected="false" aria-current="false">📦 PALLET</button>
+  </div>
+</section>
+
+<section id="personalOverlay" hidden>
+  <iframe id="personalFrame" srcdoc=""></iframe>
+</section>
+
+<template id="TPL_G">
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Impresor de Precios — v06p (reversión a v06n)</title>
+<style>
+  :root{
+  /* === GÓNDOLA variables de separación vertical === */
+  --pp-gap: -12px;            /* margen inferior del PRODUCTO (Producto ↔ Precio) */
+  --pp-gap-adjust: 0px;       /* margen superior del PRECIO (ajuste fino) */
+  --product-top-nudge: -8px;  /* margen superior del PRODUCTO (borde superior ↔ Producto) */
+  --slot-top-pad: 0px;        /* padding superior del contenedor del slot */
+
+    --gap: 8mm;
+    --page-w: 168mm;
+    --margin-v: 0mm;      /* margen arriba/abajo */
+    --margin-h: 10mm;
+    --slot-h: 85mm;       /* alto fijo de cada cartel */
+    --brand-red: #FF0000;
+    --border: #111;
+    --offer-size: 56px;   /* ¡OFERTA! tamaño fijo */
+    --detail-size: 40px;  /* DETALLE tamaño fijo */
+  }
+  @page{ size: 8.5in 11in; margin: 0; }
+  * { box-sizing: border-box; }
+  body{ margin:0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, "Helvetica Neue", sans-serif; background:#f3f4f6; color:#111827; }
+  header{ padding:12px 16px; background:#111827; color:#fff; display:flex; align-items:center; gap:10px; position:sticky; top:0; z-index:5; }
+  header h1{ font-size:18px; margin:0; font-weight:600; letter-spacing:0.2px; }
+  main{ display:flex; gap:16px; padding:16px; }
+  .panel{ width: 400px; background:#fff; border:1px solid #e5e7eb; border-radius:12px; padding:12px; box-shadow: 0 4px 14px rgba(0,0,0,.06); position:sticky; top:72px; align-self:flex-start; }
+  .panel h2{ font-size:14px; margin:6px 0 8px; color:#111; }
+  .box{ border:1px solid #e5e7eb; border-radius:10px; padding:10px; margin-bottom:10px; background:#fafafa; }
+  label{ font-size:12px; color:#374151; display:block; margin:6px 0 4px; }
+  input[type=text], select{ width:100%; padding:8px 10px; border-radius:8px; border:1px solid #d1d5db; background:#fff; font-size:14px; outline:none; }
+  .row{ display:flex; gap:8px; }
+  .row > *{ flex:1; }
+  .sliders .row{ align-items:center; }
+  .sliders input[type=range]{ width:100%; }
+  .actions button{ width:100%; padding:12px; border-radius:12px; border:0; cursor:pointer; font-weight:700; margin-top:8px; }
+  .primary{ background:#111827; color:#fff; }
+  .ghost{ background:#fff; border:1px solid #d1d5db; }
+  .linklike{ background:transparent; border:0; color:#111827; font-weight:600; text-decoration:underline; cursor:pointer; }
+  .muted{ color:#6b7280; font-size:12px; }
+
+  /* Segmentado */
+  .seg{ display:flex; border:1px solid #d1d5db; border-radius:12px; overflow:hidden; }
+  .seg button{ flex:1; padding:10px 0; background:#fff; border:0; cursor:pointer; font-weight:700; font-size:16px; color:#111827; }
+  .seg button + button{ border-left:1px solid #e5e7eb; }
+  .seg button.active{ background:#111827; color:#fff; }
+
+  .page-wrap{ flex:1; display:flex; justify-content:center; align-items:flex-start; }
+  .page{ width: calc(var(--page-w) * 0.97); height: calc(var(--slot-h) * 3 + var(--gap) * 2 + var(--margin-v) * 2); background:#fff; border:1px solid #e5e7eb; border-radius:12px; box-shadow:0 10px 30px rgba(0,0,0,.08); padding: var(--margin-v) var(--margin-h); display:flex; flex-direction:column; gap: var(--gap); overflow:hidden; }
+  .slot{ flex: 0 0 var(--slot-h); border:2.2px solid var(--border); border-radius:8px; display:flex; overflow:hidden; background:#fff;
+  padding-top: var(--slot-top-pad, 0px);
+}
+  .offer-band{ width: 14%; min-width: 14%; border-right:2px solid var(--border); display:flex; align-items:center; justify-content:center; padding:6px; background:#fff; }
+  .offer-text{ writing-mode: vertical-rl; transform: rotate(180deg); font-weight:800; color: var(--brand-red); text-align:center; line-height:1.05; letter-spacing:0.5px; font-size: var(--offer-size) !important; }
+  .content{ position:relative; flex:1; display:flex; flex-direction:column; padding:10px 14px 12px 12px; gap:6px; }
+  /* Código de quien imprime (esquina inferior derecha) */
+  .printed-code{
+    position:absolute;
+    right:10px;
+    bottom:6px;
+    font-size:10px;
+    color:#6b7280;
+    font-weight:700;
+    letter-spacing:0.5px;
+    opacity:0.95;
+    pointer-events:none;
+    user-select:none;
+  }
+
+  .product, .price, .detail, .logo{ border-radius:6px; padding: 2px 8px; overflow:hidden; display:flex; align-items:center; justify-content:center; text-align:center; }
+  .product{ flex: 27 0 0;
+  margin-bottom: var(--pp-gap, 0px);
+  margin-top: var(--product-top-nudge, 0px);
+}
+  .price{ flex: 42 0 0;
+  margin-top: var(--pp-gap-adjust, 0px);
+}
+  .detail{ flex: 12 0 0; }
+  .logo{ flex: 19 0 0; }
+  .price-inner{ display:flex; align-items:flex-end; justify-content:center; gap:10px; }
+  .sign, .cu{ font-weight:800; }
+  .money{ font-weight:900; color:#FF0000; line-height:1; }
+  .product > div{ line-height:1.05; font-weight:800; }
+  .detail > div{ line-height:1.05; font-weight:800; font-size: var(--detail-size) !important; }
+  .placeholder-logo{ background:#0f2d8c; color:#fff; border-radius:8px; padding:8px 16px; display:inline-flex; flex-direction:column; gap:4px; align-items:center; justify-content:center; }
+  .placeholder-logo .top{ color:#ffe100; font-weight:800; font-size: clamp(10px, 3.5vw, 20px); }
+  .placeholder-logo .main{ font-weight:900; font-size: clamp(12px, 4.2vw, 26px); letter-spacing:0.5px; }
+
+  @media print{ body{ background:#fff; } header, .panel{ display:none !important; } .page{ box-shadow:none; border:0; width: var(--page-w); height: calc(var(--slot-h) * 3 + var(--gap) * 2 + var(--margin-v) * 2); margin: 0 auto; } }
+
+/* === Logo sizing helpers === */
+#logo1 img, #logo2 img, #logo3 img { width:auto; height:100%; object-fit:contain; display:block; margin:0 auto; }
+
+
+.slot .product{
+  margin-bottom: var(--pp-gap, 0px);
+  margin-top: var(--product-top-nudge, 0px);
+}
+
+.slot .price{
+  margin-top: var(--pp-gap-adjust, 0px);
+}
+
+/* === Scroll para Gestor de Personal (GÓNDOLA) === */
+.modal-card{
+  max-height: min(90vh, 680px);
+  display: flex;
+  flex-direction: column;
+}
+.modal-card .modal-grid{
+  flex: 1 1 auto;
+  overflow-y: auto;
+  max-height: calc(90vh - 140px);
+  padding-right: 6px;
+}
+#pmTable thead th{
+  position: sticky; top: 0;
+  background: #0f0f0f;
+}
+</style>
+
+<!-- fit-style-override-v7 -->
+<style>
+/* Mantener simetría y límites visuales */
+.slot{ overflow:hidden; }
+.price{ padding-left:8px; padding-right:8px; }
+.price-inner{
+  display:grid;
+  grid-template-columns: auto 1fr auto; /* $ | NUM | C/U */
+  column-gap: 8px;
+  align-items: baseline;
+  max-width:100%;
+}
+.price-inner .num{ display:block; max-width:100%; overflow:hidden; }
+.money{ white-space:nowrap; line-height:1; }
+
+/* Texto producto seguro */
+.product{ min-width:0; padding:0 8px; }
+.product > div{
+  display:block;
+  max-width:100%;
+  overflow:hidden;
+  white-space:normal;
+  overflow-wrap:anywhere;
+  hyphens:auto;
+}
+</style>
+
+
+<!-- detail-size-override -->
+<style>
+/* === Tamaño del texto "AL DETALLE" / "PRECIO X KILO" / "PRECIO X 1/4" ===
+   Cambia SOLO este valor para ajustar el tamaño del texto del recuadro de detalle. */
+:root { --DETAIL_TEXT_PX: 30px; } /* <-- AJUSTA AQUÍ (ej: 32px, 44px) */
+.detail > div{ font-size: var(--DETAIL_TEXT_PX) !important; line-height:1; }
+</style>
+
+
+<!-- hard-lock-symbols-css -->
+<style>
+/* Congela el tamaño de $ y C/U por CSS (prevalece sobre estilos inline) */
+#sign1,#sign2,#sign3{ font-size: 26px !important; }
+#cu1,#cu2,#cu3{ font-size: 22px !important; }
+
+/* Asegura la grilla de precio para columna central del número */
+.price-inner{
+  display:grid;
+  grid-template-columns:auto 1fr auto;
+  column-gap:8px;
+  align-items:baseline;
+  max-width:100%;
+}
+.price-inner .num{ display:block; max-width:100%; overflow:hidden; }
+.money{ white-space:nowrap; line-height:1; }
+</style>
+
+
+<!-- hide-price-slider-ui -->
+<style>
+#sPrice, label[for="sPrice"] { display:none !important; }
+</style>
+
+
+<!-- hide-price-row-and-sProd-input -->
+<style>
+/* Oculta toda la fila del slider de PRECIO (label + barra) */
+.sl:has(#sPrice){ display:none !important; }
+#sPrice{ display:none !important; }
+label[for="sPrice"]{ display:none !important; }
+/* Oculta SOLO la barra del slider PRODUCTO global (dejamos el texto "PRODUCTO") */
+#sProd{ display:none !important; }
+</style>
+
+
+<style>
+/* === Modal base === */
+.modal-overlay{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.5);z-index:999999}
+.modal-overlay.show{display:flex}
+.modal-card{width:min(640px,94vw);background:#111;color:#eee;border-radius:12px;padding:18px;border:1px solid #2a2a2a;box-shadow:0 10px 30px rgba(0,0,0,.5);font-family:system-ui,Segoe UI,Roboto,Arial}
+.modal-card h3{margin:0 0 10px;font-size:18px;font-weight:700}
+.modal-grid{display:grid;grid-template-columns:1fr;gap:10px}
+.modal-grid label{font-size:12px;color:#cfcfcf}
+.modal-grid input, .modal-grid select{width:100%;padding:10px;border-radius:10px;border:1px solid #3a3a3a;background:#1b1b1b;color:#fff;font-size:14px;outline:none}
+.modal-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:14px}
+.modal-actions button{padding:10px 14px;border-radius:10px;border:0;cursor:pointer}
+.btn-sec{background:#262626;color:#e6e6e6}
+.btn-pri{background:#0ea5e9;color:white;font-weight:600}
+.small{font-size:12px;color:#bdbdbd}
+.err{color:#ff7b7b;font-size:12px;min-height:16px}
+/* table */
+.table{width:100%;border-collapse:collapse;margin-top:6px}
+.table th,.table td{border-bottom:1px solid #2a2a2a;padding:8px;text-align:left;font-size:14px}
+.table th{color:#bdbdbd;font-weight:600}
+.table td .del{background:#3b82f6;color:#fff;border:0;border-radius:8px;padding:4px 8px;cursor:pointer}
+/* little button in UI (optional) */
+#btnOpenPM{position:fixed;right:14px;bottom:14px;z-index:99999;background:#374151;color:#fff;border:0;border-radius:999px;padding:10px 14px;font-weight:600;cursor:pointer;box-shadow:0 8px 20px rgba(0,0,0,.35)}
+#btnOpenPM:hover{filter:brightness(1.05)}
+@media print{#btnOpenPM{display:none}}
+</style>
+
+
+<!-- hide producto/precio headings and their rows in 'Tamaño de texto' -->
+<style>
+  .box.sliders .row:has(#sProd),
+  .box.sliders .row:has(#sPrice) { display: none !important; }
+</style>
+
+
+<style>
+/* === Ajustes editables de espacio alrededor del LOGO ===
+   Cambia los valores de estas variables para ajustar los espacios.
+   Sugerencias:
+   --logo-pad-top / --logo-pad-bottom: 0rem a 0.6rem
+   --detail-bottom: 0rem a 0.6rem
+   --detail-lineheight: 0.95 a 1.15
+   --content-row-gap: 0rem (sin separación) a 0.5rem
+*/
+:root{
+  --logo-pad-top: 0.10rem;       /* espacio entre “AL DETALLE” y el logo */
+  --logo-pad-bottom: 0.1rem;    /* espacio entre el logo y la línea inferior */
+  --detail-bottom: 0rem;         /* espacio debajo de “AL DETALLE” */
+  --detail-lineheight: 1.00;     /* altura de línea del texto “AL DETALLE” */
+  --content-row-gap: 0rem;       /* separación vertical entre secciones del cartel */
+}
+
+/* 1) Menos espacio debajo de “AL DETALLE” */
+#slot1 .detail, #slot2 .detail, #slot3 .detail{
+  margin-bottom: 0 !important;
+  padding-bottom: var(--detail-bottom) !important;
+}
+#slot1 .detail > div, #slot2 .detail > div, #slot3 .detail > div{
+  line-height: var(--detail-lineheight) !important;
+}
+
+/* 2) Espacio arriba/abajo del LOGO (soporta .logo, .brand y los ids #logo1..3) */
+#slot1 .logo, #slot2 .logo, #slot3 .logo,
+#slot1 .brand, #slot2 .brand, #slot3 .brand,
+#logo1, #logo2, #logo3{
+  margin-top: 0 !important;
+  padding-top: var(--logo-pad-top) !important;
+  padding-bottom: var(--logo-pad-bottom) !important;
+}
+
+/* 3) Quita separación vertical entre bloques del cartel */
+#slot1 .content, #slot2 .content, #slot3 .content{
+  row-gap: var(--content-row-gap) !important;
+  gap: var(--content-row-gap) !important;
+}
+</style>
+
+
+<style>
+/* ==== LOGO altura fija 60px (bloquea el slider) ==== */
+#logo1, #logo2, #logo3,
+#slot1 .logo, #slot2 .logo, #slot3 .logo {
+  height: 60px !important;
+  min-height: 60px !important;
+  max-height: 60px !important;
+  flex: 0 0 auto !important; /* evitar estirar/encoger por flex */
+}
+
+/* Ocultar control "Tamaño del logo" en el panel */
+#logoSizeBox { display: none !important; }
+</style>
+
+<!-- print-single-page-fix -->
+<style>
+/* Fuerza impresión en una sola hoja y elimina la hoja en blanco (desbordes por redondeo) */
+@media print{
+  /* Ajuste fino para evitar que 1-2px empujen a una segunda página */
+  .page{
+    transform: scale(0.998);
+    transform-origin: top left;
+    /* Garantiza que el alto real nunca exceda la hoja */
+    height: calc(11in - 0.5mm) !important;
+    overflow: hidden !important;
+    break-after: avoid-page;
+    page-break-after: avoid;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  /* Evita cortes dentro de cada cartel */
+  .slot{
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+}
+</style>
+
+
+<!-- print-single-page-strong -->
+<style>
+/* Fuerza 1 página incluso si el navegador agrega encabezados/pies o márgenes por defecto */
+@media print{
+  /* Reducimos levemente el alto de cada cartel y el gap para entrar en 1 hoja AUN con headers/pies activos */
+  :root{
+    --slot-h: 80mm !important;  /* antes: 85mm */
+    --gap: 6mm !important;      /* antes: 8mm  */
+  }
+  /* Aseguramos que el alto total de la página sea exactamente la suma de los 3 carteles + gaps */
+  .page{
+    height: calc(var(--slot-h) * 3 + var(--gap) * 2 + var(--margin-v) * 2) !important;
+    overflow: hidden !important;
+    break-after: avoid-page; page-break-after: avoid;
+    break-inside: avoid; page-break-inside: avoid;
+  }
+  .slot{ break-inside: avoid; page-break-inside: avoid; }
+}
+</style>
+
+
+<!-- print-single-page-noheaders -->
+<style>
+/* Versión optimizada para usar con:
+   - Encabezados y pies de página: DESACTIVADOS
+   - Márgenes del sistema: NINGUNO
+*/
+@media print{
+  @page{
+    size: Letter;
+    margin: 0 !important; /* navegador: Márgenes = Ninguno */
+  }
+  /* Restablecemos dimensiones cómodas porque no habrá headers/pies */
+  :root{
+    --slot-h: 85mm !important;  /* alto por cartel */
+    --gap: 8mm !important;      /* separación entre carteles */
+    --margin-v: 4mm !important; /* pequeño respiro visual arriba/abajo */
+  }
+  .page{
+    /* altura segura a 1 página completa sin headers/pies */
+    height: calc(11in - 0.1mm) !important;
+    overflow: hidden !important;
+    transform: none !important;
+    break-after: avoid-page; page-break-after: avoid;
+    break-inside: avoid; page-break-inside: avoid;
+  }
+  .slot{ break-inside: avoid; page-break-inside: avoid; }
+}
+</style>
+
+
+<!-- print-top-tight -->
+<style>
+/* Sube los carteles (reduce margen superior en impresión) */
+@media print{
+  /* márgenes del navegador en 0 (usa Márgenes = Ninguno) */
+  @page{ margin:0 !important; }
+  /* compacta el margen vertical propio del diseño */
+  :root{
+    --margin-v: 0.5mm !important; /* antes 4mm en la versión noheaders */
+  }
+  /* elimina cualquier separación adicional arriba */
+  html, body{ margin:0 !important; padding:0 !important; }
+  .page{ margin-top:0 !important; padding-top:0 !important; }
+}
+</style>
+
+
+<!-- print-noblank-toptight-v2 -->
+<style>
+@media print{
+  @page { size: Letter; margin: 0 !important; }
+  html, body { margin:0 !important; padding:0 !important; }
+
+  /* Mantén visible <main> y oculta solo los hermanos de .page-wrap dentro de main */
+  main { display:block !important; }
+  main > :not(.page-wrap) { display:none !important; }
+
+  /* header y panel fuera de impresión (por si el estilo original faltara) */
+  header, .panel { display:none !important; }
+
+  /* Evita que Chrome reserve una segunda página por redondeos */
+  .page{ margin-bottom:-3mm !important; overflow:hidden !important; }
+  .slot{ break-inside: avoid; page-break-inside: avoid; }
+}
+</style>
+
+
+<!-- print-force-firstpage -->
+<style>
+@media print{
+  /* Config del cuadro de impresión: Carta, sin márgenes/headers */
+  @page { size: Letter; margin: 0 !important; }
+  /* Clave: limitar el documento a EXACTAMENTE una hoja y recortar cualquier desborde
+     sin modificar tamaños internos de los carteles. */
+  html, body{
+    margin:0 !important;
+    padding:0 !important;
+    height: 10.99in !important;   /* un pelo menos que 11in para evitar reserva de 2da hoja */
+    overflow: hidden !important;  /* recorta cualquier “sobrante” que provocaría una hoja en blanco */
+  }
+
+  /* Asegura que solo se imprime el lienzo de carteles */
+  header, .panel { display:none !important; }
+  main { display:block !important; }
+  main > :not(.page-wrap){ display:none !important; }
+
+  /* De respaldo: si existiera cualquier nodo fuera de .page, no se imprime */
+  body > :not(main) { display:none !important; }
+
+  /* Mantener la integridad de cada cartel durante print */
+  .slot{ break-inside: avoid; page-break-inside: avoid; }
+}
+</style>
+
+</head>
+<body>
+<header>
+  <h1>Impresor de Precios — v06p</h1>
+  <span class="muted">Reversión a la vista de v06n (banda OFERTA original).</span>
+</header>
+<main>
+  <div class="panel">
+    <h2>Cantidad de carteles</h2>
+    <div class="box"><div class="seg"><button id="c1" class="active">1</button><button id="c2">2</button><button id="c3">3</button></div></div>
+
+    <h2>Datos</h2>
+    <div id="box1" class="box"><div class="row"><label>Producto 1</label><input id="p1" type="text" value="CHULETA CERDO CENTRO PORCINADO FRIGO" /></div>
+    <div class="row"><div><label>Precio 1 (CLP)</label><input id="r1" type="text" value="6890" /></div><div><label>Texto 1</label><select id="d1"></select></div></div></div>
+    <div id="box2" class="box" style="display:none;"><div class="row"><label>Producto 2</label><input id="p2" type="text" value="PECHUGA ENTERA POLLO ARIZTIA" /></div>
+    <div class="row"><div><label>Precio 2 (CLP)</label><input id="r2" type="text" value="6490" /></div><div><label>Texto 2</label><select id="d2"></select></div></div></div>
+    <div id="box3" class="box" style="display:none;"><div class="row"><label>Producto 3</label><input id="p3" type="text" value="POLLO TRUTRO 1/4 ARIZTIA" /></div>
+    <div class="row"><div><label>Precio 3 (CLP)</label><input id="r3" type="text" value="2990" /></div><div><label>Texto 3</label><select id="d3"></select></div></div></div>
+
+    <div class="box sliders"><h2>Tamaño de texto</h2>
+      <div class="row"><label>PRODUCTO</label><input id="sProd" type="range" min="0.6" max="2.0" step="0.05" value="1.30"></div>
+      <div class="row"><label>PRECIO</label><input id="sPrice" type="range" min="0.6" max="2.0" step="0.05" value="1.00"></div>
+      <!-- DETALLE tamaño fijo -->
+    </div>
+
+    <div class="box">
+      <h2>Logo</h2>
+      <div class="row"><input id="logoFile" type="file" accept="image/*"></div>
+      <div class="row"><button class="ghost" id="clearLogo">Quitar logo</button></div>
+      <div class="muted">Si no cargas logo, se muestra un logo genérico.</div>
+    </div>
+
+    <div class="actions">
+      <button class="primary" id="printBtn">Imprimir / Guardar PDF</button>
+      <button class="linklike" id="resetBtn">Restablecer ejemplo</button>
+    </div>
+  </div>
+
+  <div class="page-wrap"><div class="page" id="page">
+    <div class="slot" id="slot1"><div class="offer-band"><div class="offer-text" id="offer1">¡OFERTA!</div></div>
+      <div class="content"><div class="product"><div id="prod1"></div></div>
+        <div class="price"><div class="price-inner"><div class="sign" id="sign1">$</div><div class="money" id="money1">0</div><div class="cu" id="cu1">C/U</div></div></div>
+        <div class="detail"><div id="det1"></div></div><div class="logo"><div id="logo1" class="placeholder-logo"><div class="top">SUPERMERCADO</div><div class="main">LAS COMPAÑÍAS</div></div></div>
+      </div>
+    </div>
+    <div class="slot" id="slot2" style="display:none;"><div class="offer-band"><div class="offer-text" id="offer2">¡OFERTA!</div></div>
+      <div class="content"><div class="product"><div id="prod2"></div></div>
+        <div class="price"><div class="price-inner"><div class="sign" id="sign2">$</div><div class="money" id="money2">0</div><div class="cu" id="cu2">C/U</div></div></div>
+        <div class="detail"><div id="det2"></div></div><div class="logo"><div id="logo2" class="placeholder-logo"><div class="top">SUPERMERCADO</div><div class="main">LAS COMPAÑÍAS</div></div></div>
+      </div>
+    </div>
+    <div class="slot" id="slot3" style="display:none;"><div class="offer-band"><div class="offer-text" id="offer3">¡OFERTA!</div></div>
+      <div class="content"><div class="product"><div id="prod3"></div></div>
+        <div class="price"><div class="price-inner"><div class="sign" id="sign3">$</div><div class="money" id="money3">0</div><div class="cu" id="cu3">C/U</div></div></div>
+        <div class="detail"><div id="det3"></div></div><div class="logo"><div id="logo3" class="placeholder-logo"><div class="top">SUPERMERCADO</div><div class="main">LAS COMPAÑÍAS</div></div></div>
+      </div>
+    </div>
+  </div></div>
+</main>
+
+<script>
+// ===== CONFIG =====
+const CONFIG = {
+  PAGE_WIDTH_MM: 168, MARGIN_V_MM: 0, MARGIN_H_MM: 10, GAP_MM: 8, SLOT_HEIGHT_MM: 85,
+  DETAIL_SIZE_PX: 40
+};
+
+// ===== Lista de opciones del DETALLE =====
+const DETAIL_OPTIONS = ["AL DETALLE", "PRECIO UNICO", "PRECIO X KILO"];
+const DEFAULT_DETAIL = "AL DETALLE";
+
+// Utils
+const $ = s => document.querySelector(s);
+const upper = s => (s||"").toString().toUpperCase();
+const formatCLP = s => { const d=(s||"").toString().replace(/\D+/g,""); if(!d) return "0"; return parseInt(d,10).toLocaleString('es-CL'); };
+
+// Aplicar medidas/valores
+document.documentElement.style.setProperty('--page-w',  CONFIG.PAGE_WIDTH_MM + 'mm');
+document.documentElement.style.setProperty('--margin-v',CONFIG.MARGIN_V_MM + 'mm');
+document.documentElement.style.setProperty('--margin-h',CONFIG.MARGIN_H_MM + 'mm');
+document.documentElement.style.setProperty('--gap',      CONFIG.GAP_MM + 'mm');
+document.documentElement.style.setProperty('--slot-h',   CONFIG.SLOT_HEIGHT_MM + 'mm');
+document.documentElement.style.setProperty('--detail-size', CONFIG.DETAIL_SIZE_PX + 'px');
+
+const state = { count:1, sProd:1.30, sPrice:1.00, logoData:null };
+
+function populateSelect(selId){
+  const sel = document.getElementById(selId);
+  sel.innerHTML = DETAIL_OPTIONS.map(t => `<option${t===DEFAULT_DETAIL?' selected':''}>${t}</option>`).join('');
+}
+
+function setCount(n){
+  state.count = Math.max(1, Math.min(3, n));
+  [1,2,3].forEach(i=>{ const b=$('#c'+i); b.classList.toggle('active', i===state.count); });
+  [1,2,3].forEach(i=>{
+    const box = document.getElementById('box'+i); if(box) box.style.display = (i<=state.count)?'block':'none';
+    document.getElementById('slot'+i).style.display = (i<=state.count)?'flex':'none';
+  });
+  
+  // Mostrar sliders por cantidad seleccionada
+  ['sProd1','sProd2','sProd3'].forEach(function(id, idx){
+    var el = document.getElementById(id);
+    if (el){
+      var row = el.closest ? el.closest('.sl') : el.parentElement;
+      if (row){ row.style.display = ((idx+1) <= state.count) ? '' : 'none'; }
+    }
+  });
+
+  applyInputs();
+}
+
+function applyInputs(){
+  const p=[ upper($('#p1').value), upper($('#p2').value), upper($('#p3').value) ];
+  const r=[ $('#r1').value, $('#r2').value, $('#r3').value ];
+  const d=[ upper($('#d1').value), upper($('#d2').value), upper($('#d3').value) ];
+  const money=[ formatCLP(r[0]), formatCLP(r[1]), formatCLP(r[2]) ];
+  for(let i=1;i<=3;i++){
+    if(i<=state.count){ $('#prod'+i).textContent = p[i-1]; $('#money'+i).textContent = money[i-1]; $('#det'+i).textContent = d[i-1]; }
+  }
+  const baseProd=46, basePrice=120;
+  for(let i=1;i<=state.count;i++){
+    $('#prod'+i).style.fontSize  = (baseProd * state.sProd) + 'px';
+    $('#money'+i).style.fontSize = (basePrice * state.sPrice) + 'px';
+    $('#sign'+i).style.fontSize  = Math.max(8,(basePrice * state.sPrice * 0.45)) + 'px';
+    $('#cu'+i).style.fontSize    = Math.max(8,(basePrice * state.sPrice * 0.40)) + 'px';
+    // [Cambio v20b→v20c] Ocultar 'C/U' si el Detalle es 'PRECIO X KILO'
+    $('#cu'+i).style.display = (d[i-1] === 'PRECIO X KILO') ? 'none' : '';
+  }
+  // logo
+  for(let i=1;i<=3;i++){
+    const wrap = document.getElementById('logo'+i);
+    if(i>state.count){ wrap.innerHTML=''; continue; }
+    if(state.logoData){ wrap.classList.remove('placeholder-logo'); wrap.innerHTML=''; const img = new Image(); img.src = state.logoData; img.style.maxWidth='100%'; img.style.maxHeight='100%'; img.style.objectFit='contain'; wrap.appendChild(img); }
+    else { wrap.classList.add('placeholder-logo'); wrap.innerHTML = '<div class="top">SUPERMERCADO</div><div class="main">LAS COMPAÑÍAS</div>'; }
+  }
+}
+
+function initUI(){
+  populateSelect('d1'); populateSelect('d2'); populateSelect('d3');
+
+  $('#c1').addEventListener('click', ()=> setCount(1));
+  $('#c2').addEventListener('click', ()=> setCount(2));
+  $('#c3').addEventListener('click', ()=> setCount(3));
+
+  ['p1','p2','p3','r1','r2','r3'].forEach(id=>{ const el=$('#'+id); el.addEventListener('input', applyInputs); });
+  ['d1','d2','d3'].forEach(id=>{ const el=$('#'+id); el.addEventListener('change', applyInputs); });
+
+  $('#sProd').addEventListener('input', e=>{ state.sProd = parseFloat(e.target.value); applyInputs(); });
+  $('#sPrice').addEventListener('input', e=>{ state.sPrice = parseFloat(e.target.value); applyInputs(); });
+
+  document.getElementById('logoFile').addEventListener('change', e=>{ const f=e.target.files&&e.target.files[0]; if(!f) return; const rd=new FileReader(); rd.onload=ev=>{ state.logoData=ev.target.result; localStorage.setItem('labelLogo', state.logoData); applyInputs(); }; rd.readAsDataURL(f); });
+  document.getElementById('clearLogo').addEventListener('click', ()=>{ state.logoData=null; localStorage.removeItem('labelLogo'); applyInputs(); });
+  const saved = localStorage.getItem('labelLogo'); if(saved) state.logoData = saved;
+
+  document.getElementById('printBtn').addEventListener('click', ()=>{ window.print(); });
+  document.getElementById('resetBtn').addEventListener('click', ()=>{
+    $('#p1').value='CHULETA CERDO CENTRO PORCINADO FRIGO'; $('#r1').value='6890'; $('#d1').value=DEFAULT_DETAIL;
+    $('#p2').value='PECHUGA ENTERA POLLO ARIZTIA'; $('#r2').value='6490'; $('#d2').value=DEFAULT_DETAIL;
+    $('#p3').value='POLLO TRUTRO 1/4 ARIZTIA'; $('#r3').value='2990'; $('#d3').value=DEFAULT_DETAIL;
+    state.sProd=1.30; state.sPrice=1.00; document.getElementById('sProd').value=state.sProd; document.getElementById('sPrice').value=state.sPrice;
+    setCount(1); applyInputs();
+  });
+
+  setCount(1); applyInputs();
+}
+
+window.addEventListener('load', initUI);
+</script>
+
+<!-- pricefit-v7-constants -->
+<script>
+(function(){
+  if (window.__fitV7) return; window.__fitV7 = true;
+
+  /* =========  CONFIG — SÍMBOLOS Y PRECIO  =========
+     Cambia SOLO estos valores para ajustar tamaños por defecto:
+     - SYMBOL_DOLLAR_PX  : tamaño fijo del símbolo "$"
+     - SYMBOL_CU_PX      : tamaño fijo del texto "C/U"
+     - PRICE_MAX_PX      : tamaño MÁXIMO del número de precio (punto de partida)
+     - PRICE_MIN_PX      : tamaño MÍNIMO al que puede reducirse el número
+     ================================================= */
+  const SYMBOL_DOLLAR_PX = 26;   // <-- ajusta aquí
+  const SYMBOL_CU_PX     = 22;   // <-- ajusta aquí
+  const PRICE_MAX_PX     = 135;  // <-- ajusta aquí (el número SIEMPRE parte en este tamaño)
+  const PRICE_MIN_PX     = 28;   // <-- ajusta aquí (límite inferior seguro)
+
+  function px(n){ return n + 'px'; }
+  function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
+  function num(x,fb){ var n=parseFloat(x); return isNaN(n)? fb : n; }
+
+  function wrapNumberCell(i){
+    var wrap  = document.querySelector('#slot'+i+' .price-inner');
+    var money = document.getElementById('money'+i);
+    if (!wrap || !money) return null;
+    var numWrap = wrap.querySelector('.num');
+    if (!numWrap){
+      numWrap = document.createElement('span');
+      numWrap.className = 'num';
+      money.replaceWith(numWrap);
+      numWrap.appendChild(money);
+    }
+    return numWrap;
+  }
+
+  function setFixedSymbols(i){
+    var sign = document.getElementById('sign'+i);
+    var cu   = document.getElementById('cu'+i);
+    if (!sign || !cu) return;
+    sign.style.fontSize = px(SYMBOL_DOLLAR_PX);
+    cu.style.fontSize   = px(SYMBOL_CU_PX);
+  }
+
+  function fitWidth(el, box, minPx, maxPx){
+    var size = clamp(num(getComputedStyle(el).fontSize, maxPx), minPx, maxPx);
+    el.style.fontSize = px(size);
+    var guard=0;
+    while (box.scrollWidth > box.clientWidth && size > minPx && guard++ < 800){
+      size -= 1; el.style.fontSize = px(size);
+    }
+    guard=0;
+    while (box.scrollWidth <= box.clientWidth && size < maxPx && guard++ < 800){
+      var next = Math.min(size+1, maxPx);
+      el.style.fontSize = px(next);
+      if (box.scrollWidth > box.clientWidth){ el.style.fontSize = px(size); break; }
+      size = next;
+    }
+    return size;
+  }
+
+  function fitHeights(i, limits){
+    var slot  = document.getElementById('slot'+i);
+    var money = document.getElementById('money'+i);
+    var prod  = document.getElementById('prod'+i);
+    if (!slot || !money || !prod) return;
+    var pSize = num(getComputedStyle(money).fontSize, limits.maxPricePx);
+    var tSize = num(getComputedStyle(prod).fontSize,  limits.maxTextPx);
+    var guard=0;
+    while (slot.scrollHeight > slot.clientHeight && guard++ < 800){
+      if (tSize > limits.minTextPx){ tSize -= 1; prod.style.fontSize = px(tSize); }
+      else if (pSize > limits.minPricePx){ pSize -= 1; money.style.fontSize = px(pSize); }
+      else break;
+    }
+  }
+
+  function adjustOne(i){
+    setFixedSymbols(i);
+
+    var numWrap = wrapNumberCell(i);
+    var money   = document.getElementById('money'+i);
+    var prod    = document.getElementById('prod'+i);
+    var sProd   = document.getElementById('sProd');
+    if (!numWrap || !money || !prod) return;
+
+    // 1) Forzar que el NÚMERO parta en PRICE_MAX_PX (luego se reduce si no cabe)
+    money.style.fontSize = px(PRICE_MAX_PX);
+
+    // 2) Ajustar el NÚMERO a su columna central dentro de [PRICE_MIN_PX, PRICE_MAX_PX]
+    fitWidth(money, numWrap, PRICE_MIN_PX, PRICE_MAX_PX);
+
+    // 3) Ajustar el PRODUCTO al ancho disponible (usa slider sProd como ratio si existe)
+    var targetTextPx = num(getComputedStyle(prod).fontSize, 40);
+    var minTextPx = sProd ? targetTextPx * (num(sProd.min, 0.6)/num(sProd.value||1, 1)) : 14;
+    var maxTextPx = targetTextPx;
+    fitWidth(prod, prod.parentElement, minTextPx, maxTextPx);
+
+    // 4) Control de ALTURA total del slot (reduciendo texto antes que precio)
+    fitHeights(i, {minPricePx:PRICE_MIN_PX, maxPricePx:PRICE_MAX_PX, minTextPx:minTextPx, maxTextPx:maxTextPx});
+  }
+
+  function adjustAll(){ for (var i=1;i<=3;i++) adjustOne(i); }
+
+  // Integración con tu app existente
+  function patchApply(){
+    if (window.__fitV7_apply) return;
+    try{
+      var _apply = window.applyInputs;
+      if (typeof _apply === 'function'){
+        window.applyInputs = function(){
+          _apply.apply(this, arguments);
+          adjustAll();
+        };
+        window.__fitV7_apply = true;
+      }
+    }catch(_){}
+  }
+
+  window.addEventListener('load', function(){ patchApply(); adjustAll(); });
+  window.addEventListener('resize', adjustAll);
+  document.addEventListener('input', function(e){
+    var id = e.target && e.target.id || '';
+    if (id === 'r1' || id === 'r2' || id === 'r3' || id === 'sProd'){
+      setTimeout(adjustAll, 0);
+    }
+  });
+})();
+</script>
+
+
+<!-- lock-detail-size -->
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+  function lockDetailSize(){
+    ['det1v','det2v','det3v'].forEach(function(id){
+      var el = document.getElementById(id);
+      if (el){ el.style.fontSize = ''; } // quita cualquier inline para respetar el CSS fijo
+    });
+  }
+  lockDetailSize();
+  try{
+    if (typeof window.applyInputs === 'function'){
+      var _apply = window.applyInputs;
+      window.applyInputs = function(){
+        _apply.apply(this, arguments);
+        lockDetailSize();
+      };
+    }
+  }catch(_){}
+});
+</script>
+
+
+<!-- freeze-on-any-input -->
+<script>
+(function(){
+  if (window.__freezeAllInputsV2) return; window.__freezeAllInputsV2 = true;
+
+  const PRICE_MAX_PX = 155;
+  const PRICE_MIN_PX = 28;
+
+  function px(n){ return n + 'px'; }
+
+  function ensureNumWrap(i){
+    var wrap  = document.querySelector('#slot'+i+' .price-inner');
+    var money = document.getElementById('money'+i);
+    if (!wrap || !money) return null;
+    var numWrap = wrap.querySelector('.num');
+    if (!numWrap){
+      numWrap = document.createElement('span');
+      numWrap.className = 'num';
+      money.replaceWith(numWrap);
+      numWrap.appendChild(money);
+    }
+    return numWrap;
+  }
+
+  function shrinkOnly(i){
+    var numWrap = ensureNumWrap(i);
+    var money = document.getElementById('money'+i);
+    if (!numWrap || !money) return;
+    money.style.fontSize = px(PRICE_MAX_PX);
+    var size = PRICE_MAX_PX, guard = 0;
+    while (numWrap.scrollWidth > numWrap.clientWidth && size > PRICE_MIN_PX && guard++ < 800){
+      size -= 1; money.style.fontSize = px(size);
+    }
+  }
+
+  function adjustAll(){ for (var i=1;i<=3;i++) shrinkOnly(i); }
+
+  // Hook applyInputs (cubre la mayoría de casos)
+  try{
+    var _apply = window.applyInputs;
+    if (typeof _apply === 'function' && !window.__freeze_applyPatched){
+      window.applyInputs = function(){ _apply.apply(this, arguments); adjustAll(); };
+      window.__freeze_applyPatched = true;
+    }
+  }catch(_){}
+
+  window.addEventListener('load', adjustAll);
+  window.addEventListener('resize', adjustAll);
+
+  // Reajusta ante CUALQUIER input relevante (productos, detalles, precios, sliders, etc.)
+  document.addEventListener('input', function(e){
+    var id = e.target && e.target.id || '';
+    if (['p1','p2','p3','d1','d2','d3','r1','r2','r3','sProd','count','detailSelect'].includes(id)){
+      setTimeout(adjustAll, 0);
+    }
+  });
+})();
+</script>
+
+
+<!-- neutralize-sPrice-events -->
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+  var sp = document.getElementById('sPrice');
+  if (sp){
+    sp.disabled = true;
+    sp.addEventListener('input', function(e){ e.stopPropagation(); }, true);
+  }
+});
+</script>
+
+
+<!-- inject-per-cartel-sliders-into-textsize-box -->
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+  var prodInput = document.getElementById('sProd');
+  var box = prodInput ? prodInput.closest('.box') : null;
+  if (!box || document.getElementById('perCartelSliders')) return;
+
+  var wrap = document.createElement('div');
+  wrap.id = 'perCartelSliders';
+  wrap.innerHTML = ''
+    + '<div class="sl" style="margin-top:8px"><span style="min-width:110px;display:inline-block">Cartel 1</span>'
+    + '  <input id="sProd1" type="range" min="12" max="90" step="1" value="46">'
+    + '  <span id="readP1" class="muted" style="margin-left:8px">46 px</span>'
+    + '</div>'
+    + '<div class="sl" style="margin-top:6px"><span style="min-width:110px;display:inline-block">Cartel 2</span>'
+    + '  <input id="sProd2" type="range" min="12" max="90" step="1" value="46">'
+    + '  <span id="readP2" class="muted" style="margin-left:8px">46 px</span>'
+    + '</div>'
+    + '<div class="sl" style="margin-top:6px"><span style="min-width:110px;display:inline-block">Cartel 3</span>'
+    + '  <input id="sProd3" type="range" min="12" max="90" step="1" value="46">'
+    + '  <span id="readP3" class="muted" style="margin-left:8px">46 px</span>'
+    + '</div>';
+  box.appendChild(wrap);
+});
+</script>
+
+
+<!-- per-cartel-sliders-logic-manual -->
+<script>
+(function(){
+  if (window.__perCartelV2) return; window.__perCartelV2 = true;
+
+  function px(n){ return n + 'px'; }
+  function val(id, d){ var el=document.getElementById(id); return el? parseFloat(el.value)||d : d; }
+  function setRead(i, v){ var r=document.getElementById('readP'+i); if(r) r.textContent = Math.round(v)+' px'; }
+
+  function applySize(i){
+    var size = val('sProd'+i, 46);
+    var prod = document.getElementById('prod'+i);
+    if (prod){ prod.style.fontSize = px(size); setRead(i, size); }
+  }
+  function applyAll(){ [1,2,3].forEach(applySize); }
+
+  function wire(){
+    ['sProd1','sProd2','sProd3'].forEach(function(id){
+      var el = document.getElementById(id);
+      if (el){ el.addEventListener('input', applyAll); }
+    });
+  }
+
+  // Hook applyInputs: re-aplica tamaños luego de cada cambio de campos
+  function patchApply(){
+    if (window.__perCartel_applyV2) return;
+    try{
+      var _apply = window.applyInputs;
+      if (typeof _apply === 'function'){
+        window.applyInputs = function(){
+          _apply.apply(this, arguments);
+          applyAll();
+        };
+        window.__perCartel_applyV2 = true;
+      }
+    }catch(_){}
+  }
+
+  window.addEventListener('DOMContentLoaded', function(){
+    wire(); applyAll();
+  });
+  window.addEventListener('load', function(){
+    patchApply(); applyAll();
+  });
+  document.addEventListener('input', function(e){
+    var id = e.target && e.target.id || '';
+    if (['p1','p2','p3','d1','d2','d3','r1','r2','r3'].includes(id)){
+      setTimeout(applyAll, 0);
+    }
+  });
+})();
+</script>
+
+
+<!-- init-defaults-EJEMPLO-990-FORCE -->
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+  function setVal(id, v){ var el=document.getElementById(id); if(el){ el.value=v; } }
+  ['p1','p2','p3'].forEach(function(id){ setVal(id, 'EJEMPLO'); });
+  ['r1','r2','r3'].forEach(function(id){ setVal(id, '990'); });
+  try{ if (typeof applyInputs === 'function') applyInputs(); }catch(_){}
+});
+</script>
+
+
+<!-- === MODAL: Autorización por CÓDIGO === -->
+<div class="modal-overlay" id="authModal2">
+  <div class="modal-card">
+    <h3>Autorización de impresión</h3>
+    <div class="modal-grid">
+      <div>
+        <label for="authCodigo2">Código de verificación (4 dígitos)</label>
+        <input id="authCodigo2" type="password" inputmode="numeric" maxlength="4" placeholder="****" autocomplete="one-time-code">
+      </div>
+      <div id="authPickWrap" style="display:none">
+        <label for="authPick">Selecciona tu nombre (códigos duplicados)</label>
+        <select id="authPick"></select>
+      </div>
+      <div class="small">Tip: abre el gestor de personal con <b>Ctrl + Alt + P</b></div>
+      <div class="err" id="authErr2"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-sec" id="authCancel2">Cancelar</button>
+      <button class="btn-pri" id="authOK2">Confirmar e imprimir</button>
+    </div>
+  </div>
+</div>
+
+<!-- === MODAL: Gestor de Personal === -->
+<div class="modal-overlay" id="pmModal">
+  <div class="modal-card">
+    <h3>Gestor de Personal</h3>
+    <div class="modal-grid">
+      <div>
+        <label for="pmNombre">Nombre</label>
+        <input id="pmNombre" type="text" placeholder="Ej: Ignacio Matías Fernández Illañes">
+      </div>
+      <div>
+        <label for="pmRUT">RUT (sin puntos, con guion)</label>
+        <input id="pmRUT" type="text" placeholder="12345678-9">
+        <div class="small">El sistema calculará el <b>código</b> (2 primeros + 2 últimos del RUT antes del guion)</div>
+      </div>
+      <div class="err" id="pmErr"></div>
+      <div class="modal-actions" style="justify-content:flex-start">
+        <button class="btn-pri" id="pmAdd">Agregar</button>
+        <button class="btn-sec" id="pmExport">Exportar REGISTRO</button>
+        <button class="btn-sec" id="pmClose">Cerrar</button>
+      </div>
+      <table class="table" id="pmTable">
+        <thead><tr><th>Nombre</th><th>RUT</th><th>Código</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<button id="btnOpenPM" title="Gestor de Personal">🧑 Personal</button>
+
+<script>
+(function(){
+  // ==== Helpers RUT / código ====
+  const normalizeRut = rut => (rut||"").toString().replace(/\./g,"").trim();
+  const rutBase = rut => normalizeRut(rut).split("-")[0] || "";
+  const codeFromRut = rut => {
+    const base = rutBase(rut).replace(/\D/g,"");
+    if (base.length < 4) return "";
+    return base.slice(0,2) + base.slice(-2);
+  };
+
+  // ==== Storage ====
+  const LS_PERSONNEL = "PERSONNEL_REG_V1";
+  const LS_LOGS = "PRINT_LOGS_V3";
+
+  const loadPersonnel = () => {
+    try { return JSON.parse(localStorage.getItem(LS_PERSONNEL) || "[]"); } catch { return []; }
+  };
+  const savePersonnel = (list) => localStorage.setItem(LS_PERSONNEL, JSON.stringify(list||[]));
+
+  const getLogs = () => {
+    try { return JSON.parse(localStorage.getItem(LS_LOGS) || "[]"); } catch { return []; }
+  };
+  const pushLog = (entry) => {
+    const a = getLogs();
+    a.push(entry);
+    localStorage.setItem(LS_LOGS, JSON.stringify(a));
+  };
+
+  // ==== UI refs ====
+  const $ = id => document.getElementById(id);
+
+  // Auth modal
+  const authModal = $("authModal2");
+  const authCodigo = $("authCodigo2");
+  const authErr = $("authErr2");
+  const authPickWrap = $("authPickWrap");
+  const authPick = $("authPick");
+  $("authCancel2").addEventListener("click", () => hideAuth());
+  $("authOK2").addEventListener("click", () => confirmAuth());
+
+  // PM modal
+  const pmModal = $("pmModal");
+  const pmNombre = $("pmNombre");
+  const pmRUT = $("pmRUT");
+  const pmErr = $("pmErr");
+  const pmTable = $("pmTable").querySelector("tbody");
+  $("pmAdd").addEventListener("click", () => addPerson());
+  $("pmClose").addEventListener("click", () => hidePM());
+  $("pmExport").addEventListener("click", () => downloadCSV());
+  $("btnOpenPM").addEventListener("click", () => showPM());
+
+  // Shortcuts
+  document.addEventListener("keydown", (e) => {
+    if (e.ctrlKey && e.altKey && (e.key==="p" || e.key==="P")) { e.preventDefault(); showPM(); }
+    if (e.ctrlKey && e.altKey && (e.key==="l" || e.key==="L")) { e.preventDefault(); downloadCSV(); }
+  });
+
+  // ==== Modal show/hide ====
+  function showAuth(){
+    authCodigo.value = "";
+    authErr.textContent = "";
+    authPickWrap.style.display = "none";
+    authPick.innerHTML = "";
+    authModal.classList.add("show");
+    setTimeout(() => authCodigo.focus(), 10);
+  }
+  function hideAuth(){ authModal.classList.remove("show"); }
+
+  function __showPM_inner(){
+    pmErr.textContent = "";
+    pmNombre.value = "";
+    pmRUT.value = "";
+    renderPM();
+    pmModal.classList.add("show");
+  }
+
+function showPM(){
+  // Password gate
+  const PWD_SECRET = "ELMISMISIMOCSM";
+  let v = prompt("Contraseña para gestionar personal:");
+  if (v === null) return; // cancel
+  if (v !== PWD_SECRET){
+    alert("Contraseña incorrecta.");
+    return;
+  }
+  return __showPM_inner();
+}
+
+  function hidePM(){ pmModal.classList.remove("show"); }
+
+  // ==== PM logic ====
+  function renderPM(){
+    const list = loadPersonnel();
+    pmTable.innerHTML = "";
+    for (const p of list){
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td>${escapeHtml(p.nombre||"")}</td><td>${escapeHtml(p.rut||"")}</td><td>${escapeHtml(p.code||"")}</td>
+      <td><button class="del">Eliminar</button></td>`;
+      tr.querySelector(".del").addEventListener("click", () => {
+        const after = loadPersonnel().filter(x => x.rut !== p.rut);
+        savePersonnel(after);
+        renderPM();
+      });
+      pmTable.appendChild(tr);
+    }
+  }
+  function addPerson(){
+    const nombre = (pmNombre.value||"").trim();
+    const rut = normalizeRut(pmRUT.value||"");
+    if (!nombre) return pmErr.textContent = "Ingresa el nombre.";
+    if (!/^\d{6,9}-[\dkK]$/.test(rut)) return pmErr.textContent = "RUT inválido. Usa 12345678-9.";
+    const code = codeFromRut(rut);
+    if (!code) return pmErr.textContent = "RUT demasiado corto para generar código.";
+    const list = loadPersonnel();
+    if (list.some(x => x.rut === rut)) return pmErr.textContent = "Ya existe un registro con ese RUT.";
+    list.push({ nombre, rut, code });
+    savePersonnel(list);
+    renderPM();
+    pmNombre.value = ""; pmRUT.value = "";
+  }
+  function exportPM(){
+    const rows = loadPersonnel();
+    if (!rows.length) { alert("No hay registros de personal."); return; }
+    const DELIM_PM = ";";
+    const header = ["nombre","rut","code"];
+    const esc = v => `"${String(v??"").replace(/"/g,'""')}"`;
+    const data = ["\ufeff"+header.join(DELIM_PM)].concat(
+      rows.map(r => [esc(r.nombre),esc(r.rut),esc(r.code)].join(","))
+    ).join("\r\n");
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([data], {type:"text/csv;charset=utf-8;"}));
+    const ts = new Date().toISOString().slice(0,19).replace(/[:T]/g,"-");
+    a.download = `personal_${ts}.csv`; document.body.appendChild(a); a.click(); a.remove();
+  }
+
+  // ==== Utils ====
+  function escapeHtml(s){ return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+
+  // ==== Carteles reader ====
+  function slotVisible(i){
+    const el = document.querySelector("#slot"+i);
+    return el ? !!el.offsetParent : true;
+  }
+  function qText(selectors){
+    for (const sel of selectors){
+      const el = document.querySelector(sel);
+      if (el){
+        const v = ("value" in el) ? el.value : el.textContent;
+        if (v && String(v).trim()) return String(v).trim();
+      }
+    }
+    return "";
+  }
+  function readCartel(i){
+    if (!slotVisible(i)) return null;
+    const producto = qText([`#prod${i}`, `#slot${i} .product`]);
+    const detalle  = qText([`#det${i}`, `#slot${i} .detail`]);
+    const precio   = qText([`#money${i}`, `#slot${i} .money`]);
+    if (!producto && !detalle && !precio) return null;
+    return { slot:i, producto, detalle, precio, precio_num: (precio ? Number(String(precio).replace(/\D/g,"")) : 0) };
+  }
+  function readAllCarteles(){
+    const arr=[]; for (let i=1;i<=3;i++){ const x=readCartel(i); if (x) arr.push(x); } return arr;
+  }
+
+  // ==== Logs CSV ====
+  function toCSV(rows){
+    const DELIM = ";";
+    const header = ["fecha_hora","codigo","nombre","rut","slot","producto","detalle","precio"];
+    const esc = v => `"${String(v??"").replace(/"/g,'""')}"`;
+    const out = ["\ufeff"+header.join(DELIM)];
+    for (const r of rows){
+      const list = (r.carteles && r.carteles.length) ? r.carteles : [null];
+      for (const c of list){
+        out.push([esc(r.fecha_hora),esc(r.codigo),esc(r.nombre),esc(r.rut),
+                  esc(c?.slot ?? ""),esc(c?.producto ?? ""),esc(c?.detalle ?? ""),esc(c?.precio ?? "")].join(DELIM));
+      }
+    }
+    return out.join("\r\n");
+  }
+  function downloadCSV(){
+    const logs = getLogs();
+    if (!logs.length) { alert("No hay registros aún."); return; }
+    const csv = toCSV(logs);
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([csv], {type:"text/csv;charset=utf-8;"}));
+    const ts = new Date().toISOString().slice(0,19).replace(/[:T]/g,"-");
+    a.download = `registro_impresiones_${ts}.csv`; document.body.appendChild(a); a.click(); a.remove();
+  }
+  // Expose minimal audit helpers
+  window._cartelAudit = { view: () => {
+      try { console.table(getLogs().flatMap(r => (r.carteles||[]).map(c => ({fecha:r.fecha_hora,codigo:r.codigo,nombre:r.nombre,rut:r.rut,slot:c.slot,producto:c.producto,detalle:c.detalle,precio:c.precio})))) } catch(e) {}
+    }, csv: downloadCSV, clear: () => localStorage.removeItem(LS_LOGS) };
+
+  // ==== Print interception ====
+  const nativePrint = window.print.bind(window);
+  function setPrintedCode(code){
+    try{
+      for (var i=1;i<=3;i++){
+        var slot = document.getElementById('slot'+i);
+        if (!slot) continue;
+        var cont = slot.querySelector('.content');
+        if (!cont) continue;
+        var el = cont.querySelector('.printed-code');
+        if (!el){
+          el = document.createElement('div');
+          el.className = 'printed-code';
+          cont.appendChild(el);
+        }
+        el.textContent = code;
+      }
+    }catch(e){ console && console.warn && console.warn("setPrintedCode err", e); }
+  }
+
+  window.print = function(){ showAuth(); };
+
+  function confirmAuth(){
+    const code = (authCodigo.value||"").trim();
+    if (!/^\d{4}$/.test(code)) { authErr.textContent = "Ingresa un código de 4 dígitos."; return; }
+    const list = loadPersonnel().filter(p => p.code === code);
+    if (!list.length){
+      authErr.textContent = "Código no registrado. Agrega el personal en el gestor.";
+      return;
+    }
+    let person = null;
+    if (list.length === 1){
+      person = list[0];
+    } else {
+      // Desambiguación: permitir seleccionar
+      authPick.innerHTML = list.map((p,i) => `<option value="${i}">${escapeHtml(p.nombre)} — ${escapeHtml(p.rut)}</option>`).join("");
+      authPickWrap.style.display = "";
+      if (authPick.dataset._armed !== "1"){
+        authPick.dataset._armed = "1";
+        authPick.addEventListener("change", ()=>{});
+      }
+      // Si todavía no se eligió, no avanzamos hasta que presionen OK de nuevo
+      const idx = authPick.value ? parseInt(authPick.value,10) : 0;
+      person = list[idx];
+    }
+
+    // Registrar y lanzar impresión
+    const now=new Date();
+    const fecha_hora = now.toLocaleString("es-CL");
+    const fecha_iso = now.toISOString();
+    const carteles = readAllCarteles();
+    pushLog({ fecha_hora, fecha_iso, codigo: code, nombre: person?.nombre || "", rut: person?.rut || "", carteles });
+    setPrintedCode(code);
+
+
+    hideAuth();
+    nativePrint();
+  }
+
+})();</script>
+
+
+<!-- === Modal: Contraseña para Gestor de Personal (oculta por defecto) === -->
+<div class="modal-overlay" id="pmPwdModal2">
+  <div class="modal-card">
+    <h3>Contraseña requerida</h3>
+    <div class="modal-grid">
+      <div>
+        <label for="pmPwd2">Contraseña</label>
+        <input id="pmPwd2" type="password" placeholder="••••••••" autocomplete="current-password">
+      </div>
+      <label style="display:flex;align-items:center;gap:8px">
+        <input type="checkbox" id="pmPwdShow2"> Mostrar contraseña
+      </label>
+      <div class="err" id="pmPwdErr2"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-sec" id="pmPwdCancel2">Cancelar</button>
+      <button class="btn-pri" id="pmPwdOK2">Confirmar</button>
+    </div>
+  </div>
+</div>
+
+
+<script>
+(function(){
+  const PWD_SECRET = "ELMISMISIMOCSM";
+  const $ = (id) => document.getElementById(id);
+
+  function openPwd2(){
+    const m = $("pmPwdModal2");
+    $("pmPwdErr2").textContent = "";
+    $("pmPwd2").value = "";
+    m.classList.add("show");
+    setTimeout(() => $("pmPwd2").focus(), 10);
+  }
+  function hidePwd2(){ $("pmPwdModal2").classList.remove("show"); }
+  function confirmPwd2(){
+    const v = (($("pmPwd2").value)||"").trim();
+    if (v !== PWD_SECRET){ $("pmPwdErr2").textContent = "Contraseña incorrecta."; return; }
+    hidePwd2();
+    if (typeof __showPM_inner === "function") __showPM_inner();
+  }
+  function togglePw2(){
+    const inp = $("pmPwd2");
+    inp.type = (inp.type === "password") ? "text" : "password";
+  }
+
+  // bind modal events
+  $("pmPwdCancel2").addEventListener("click", hidePwd2);
+  $("pmPwdOK2").addEventListener("click", confirmPwd2);
+  $("pmPwdShow2").addEventListener("change", togglePw2);
+  $("pmPwd2").addEventListener("keydown", (e) => { if (e.key === "Enter") confirmPwd2(); });
+
+  // Override showPM to gate with password modal
+  window.showPM = function(){ openPwd2(); };
+
+  // Rebind button explicitly
+  const btn = document.getElementById("btnOpenPM");
+  if (btn) btn.onclick = () => showPM();
+})();
+</script>
+
+
+<script>
+// --- Hard override to prevent old prompt gate ---
+(function(){
+  function hijackBtn(){
+    var btn = document.getElementById("btnOpenPM");
+    if (!btn) return;
+    var clone = btn.cloneNode(true);  // removes previous listeners
+    btn.parentNode.replaceChild(clone, btn);
+    clone.addEventListener("click", function(e){
+      e.preventDefault(); e.stopImmediatePropagation();
+      if (typeof showPM === "function") showPM();
+    });
+  }
+  if (document.readyState === "loading"){
+    document.addEventListener("DOMContentLoaded", hijackBtn);
+  } else {
+    hijackBtn();
+  }
+
+  // Capture keydown BEFORE older listeners and stop it there
+  window.addEventListener("keydown", function(e){
+    if (e.ctrlKey && e.altKey && (e.key === "p" || e.key === "P")){
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      if (typeof showPM === "function") showPM();
+    }
+  }, true);
+})();
+</script>
+
+
+<script>
+// === Patch v5: Ensure only modal password is used and, upon success, open Personnel Manager reliably ===
+(function(){
+  const SECRET = "ELMISMISIMOCSM";
+  const LS_PERSONNEL = "PERSONNEL_REG_V1";
+
+  function $(id){ return document.getElementById(id); }
+
+  // Fallback renderer in case internal renderPM() is not accessible
+  function renderPM_fallback(){
+    try {
+      const tbody = document.querySelector("#pmTable tbody");
+      if (!tbody) return;
+      // Clear
+      while (tbody.firstChild) tbody.removeChild(tbody.firstChild);
+      const list = JSON.parse(localStorage.getItem(LS_PERSONNEL) || "[]");
+      for (const p of list){
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td>${escapeHtml(p.nombre||"")}</td><td>${escapeHtml(p.rut||"")}</td><td>${escapeHtml(p.code||"")}</td>
+                        <td><button class="del">Eliminar</button></td>`;
+        tr.querySelector(".del").addEventListener("click", () => {
+          const after = (JSON.parse(localStorage.getItem(LS_PERSONNEL) || "[]")).filter(x => x.rut !== p.rut);
+          localStorage.setItem(LS_PERSONNEL, JSON.stringify(after));
+          renderPM_fallback();
+        });
+        tbody.appendChild(tr);
+      }
+    } catch(e){ /* no-op */ }
+  }
+  function escapeHtml(s){ return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+
+  function openPMDirect(){
+    renderPM_fallback(); // ensure visible data
+    const modal = $("pmModal");
+    if (modal) modal.classList.add("show");
+  }
+
+  function confirmPwd_v5(){
+    const err = $("pmPwdErr2");
+    const v = (($("pmPwd2")||{}).value||"").trim();
+    if (v !== SECRET){ if (err) err.textContent = "Contraseña incorrecta."; return; }
+    // hide pwd modal
+    const pwd = $("pmPwdModal2"); if (pwd) pwd.classList.remove("show");
+    openPMDirect();
+  }
+
+  // Capture handlers: replace default confirm to avoid duplicate listeners
+  const okBtn = $("pmPwdOK2");
+  if (okBtn){
+    okBtn.addEventListener("click", function(e){
+      e.preventDefault(); e.stopImmediatePropagation();
+      confirmPwd_v5();
+    }, true); // capture
+  }
+  const input = $("pmPwd2");
+  if (input){
+    input.addEventListener("keydown", function(e){
+      if (e.key === "Enter"){
+        e.preventDefault(); e.stopImmediatePropagation();
+        confirmPwd_v5();
+      }
+    }, true);
+  }
+
+  // Ensure clicking the floating button always opens our password modal
+  function forceShowPMModal(){
+    const m = $("pmPwdModal2");
+    const err = $("pmPwdErr2"); if (err) err.textContent = "";
+    const inp = $("pmPwd2"); if (inp) inp.value = "";
+    if (m) m.classList.add("show");
+    if (inp) setTimeout(() => inp.focus(), 10);
+  }
+  const btn = $("btnOpenPM");
+  if (btn){
+    btn.addEventListener("click", function(e){
+      e.preventDefault(); e.stopImmediatePropagation();
+      forceShowPMModal();
+    }, true);
+  }
+  // And hotkey
+  window.addEventListener("keydown", function(e){
+    if (e.ctrlKey && e.altKey && (e.key==="p"||e.key==="P")){
+      e.preventDefault(); e.stopImmediatePropagation();
+      forceShowPMModal();
+    }
+  }, true);
+
+})();
+</script>
+
+
+<script>
+// === Logo size slider (global) ===
+document.addEventListener('DOMContentLoaded', function(){
+  var panel = document.querySelector('.panel');
+  if (!panel || document.getElementById('logoSizeBox')) return;
+
+  var LS_KEY = 'LOGO_H_PX_V1';
+  var saved = parseInt(localStorage.getItem(LS_KEY)||'0',10);
+  if (!saved || isNaN(saved)) saved = 120;
+
+  var box = document.createElement('div');
+  box.className = 'box';
+  box.id = 'logoSizeBox';
+  box.innerHTML = ''+
+    '<label>Tamaño del logo</label>'+
+    '<div class="row" style="align-items:center">'+
+    '  <input id="sLogo" type="range" min="60" max="260" step="2" value="'+saved+'">'+
+    '  <span id="readLogo" class="muted" style="margin-left:8px">'+saved+' px</span>'+
+    '</div>'+
+    '<div class="muted" style="margin-top:4px">Afecta los 3 carteles. (Se guarda automáticamente)</div>';
+  panel.appendChild(box);
+
+  function px(n){ return n + 'px'; }
+  function applyLogoSize(v){
+    ['logo1','logo2','logo3'].forEach(function(id,i){
+      var el = document.getElementById(id);
+      if (!el){ el = document.querySelector('#slot'+(i+1)+' .logo, #slot'+(i+1)+' .brand'); }
+      if (el){
+        el.style.flex = '0 0 auto';
+        el.style.height = px(v);
+      }
+    });
+    var r = document.getElementById('readLogo'); if (r) r.textContent = v + ' px';
+  }
+  // Wire slider
+  var s = document.getElementById('sLogo');
+  if (s){
+    s.addEventListener('input', function(){
+      var v = parseInt(this.value||saved,10) || saved;
+      applyLogoSize(v);
+      localStorage.setItem(LS_KEY, String(v));
+    });
+  }
+  // Apply saved on load
+  applyLogoSize(saved);
+});
+</script>
+
+</body>
+</html>
+
+</template>
+<template id="TPL_P">
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Impresor de Precios — v06p (reversión a v06n)</title>
+<style>
+  :root{
+    --gap: 8mm;
+    --page-w: 168mm;
+    --margin-v: 0mm;      /* margen arriba/abajo */
+    --margin-h: 10mm;
+    --slot-h: 85mm;       /* alto fijo de cada cartel */
+    --brand-red: #d00000;
+    --border: #111;
+    --offer-size: 56px;   /* ¡OFERTA! tamaño fijo */
+    --detail-size: 40px;  /* DETALLE tamaño fijo */
+  }
+  @page{ size: 8.5in 11in; margin: 0; }
+  * { box-sizing: border-box; }
+  body{ margin:0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, "Helvetica Neue", sans-serif; background:#f3f4f6; color:#111827; }
+  header{ padding:12px 16px; background:#111827; color:#fff; display:flex; align-items:center; gap:10px; position:sticky; top:0; z-index:5; }
+  header h1{ font-size:18px; margin:0; font-weight:600; letter-spacing:0.2px; }
+  main{ display:flex; gap:16px; padding:16px; }
+  .panel{ width: 400px; background:#fff; border:1px solid #e5e7eb; border-radius:12px; padding:12px; box-shadow: 0 4px 14px rgba(0,0,0,.06); position:sticky; top:72px; align-self:flex-start; }
+  .panel h2{ font-size:14px; margin:6px 0 8px; color:#111; }
+  .box{ border:1px solid #e5e7eb; border-radius:10px; padding:10px; margin-bottom:10px; background:#fafafa; }
+  label{ font-size:12px; color:#374151; display:block; margin:6px 0 4px; }
+  input[type=text], select{ width:100%; padding:8px 10px; border-radius:8px; border:1px solid #d1d5db; background:#fff; font-size:14px; outline:none; }
+  .row{ display:flex; gap:8px; }
+  .row > *{ flex:1; }
+  .sliders .row{ align-items:center; }
+  .sliders input[type=range]{ width:100%; }
+  .actions button{ width:100%; padding:12px; border-radius:12px; border:0; cursor:pointer; font-weight:700; margin-top:8px; }
+  .primary{ background:#111827; color:#fff; }
+  .ghost{ background:#fff; border:1px solid #d1d5db; }
+  .linklike{ background:transparent; border:0; color:#111827; font-weight:600; text-decoration:underline; cursor:pointer; }
+  .muted{ color:#6b7280; font-size:12px; }
+
+  /* Segmentado */
+  .seg{ display:flex; border:1px solid #d1d5db; border-radius:12px; overflow:hidden; }
+  .seg button{ flex:1; padding:10px 0; background:#fff; border:0; cursor:pointer; font-weight:700; font-size:16px; color:#111827; }
+  .seg button + button{ border-left:1px solid #e5e7eb; }
+  .seg button.active{ background:#111827; color:#fff; }
+
+  .page-wrap{ flex:1; display:flex; justify-content:center; align-items:flex-start; }
+  .page{ width: calc(var(--page-w) * 0.97); height: calc(var(--slot-h) * 3 + var(--gap) * 2 + var(--margin-v) * 2); background:#fff; border:1px solid #e5e7eb; border-radius:12px; box-shadow:0 10px 30px rgba(0,0,0,.08); padding: var(--margin-v) var(--margin-h); display:flex; flex-direction:column; gap: var(--gap); overflow:hidden; }
+  .slot{ flex: 0 0 var(--slot-h); border:2.2px solid var(--border); border-radius:8px; display:flex; overflow:hidden; background:#fff; }
+  .offer-band{ width: 14%; min-width: 14%; border-right:2px solid var(--border); display:flex; align-items:center; justify-content:center; padding:6px; background:#fff; }
+  .offer-text{ writing-mode: vertical-rl; transform: rotate(180deg); font-weight:800; color: var(--brand-red); text-align:center; line-height:1.05; letter-spacing:0.5px; font-size: var(--offer-size) !important; }
+  .content{ position:relative; flex:1; display:flex; flex-direction:column; padding:10px 14px 12px 12px; gap:6px; }
+  .product, .price, .detail, .logo{ border-radius:6px; padding: 2px 8px; overflow:hidden; display:flex; align-items:center; justify-content:center; text-align:center; }
+  .product{ flex: 27 0 0; }
+  .price{ flex: 42 0 0; }
+  .detail{ flex: 12 0 0; }
+  .logo{ flex: 19 0 0; }
+  .price-inner{ display:flex; align-items:flex-end; justify-content:center; gap:10px; }
+  .sign, .cu{ font-weight:800; }
+  .money{ font-weight:900; color:#d00000; line-height:1; }
+  .product > div{ line-height:1.05; font-weight:800; }
+  .detail > div{ line-height:1.05; font-weight:800; font-size: var(--detail-size) !important; }
+  .placeholder-logo{ background:#0f2d8c; color:#fff; border-radius:8px; padding:8px 16px; display:inline-flex; flex-direction:column; gap:4px; align-items:center; justify-content:center; }
+  .placeholder-logo .top{ color:#ffe100; font-weight:800; font-size: clamp(10px, 3.5vw, 20px); }
+  .placeholder-logo .main{ font-weight:900; font-size: clamp(12px, 4.2vw, 26px); letter-spacing:0.5px; }
+
+  @media print{ body{ background:#fff; } header, .panel{ display:none !important; } .page{ box-shadow:none; border:0; width: var(--page-w); height: calc(var(--slot-h) * 3 + var(--gap) * 2 + var(--margin-v) * 2); margin: 0 auto; } }
+
+/* === Logo sizing helpers === */
+#logo1 img, #logo2 img, #logo3 img { width:auto; height:100%; object-fit:contain; display:block; margin:0 auto; }
+
+</style>
+
+<!-- fit-style-override-v7 -->
+<style>
+/* Mantener simetría y límites visuales */
+.slot{ overflow:hidden; }
+.price{ padding-left:8px; padding-right:8px; }
+.price-inner{
+  display:grid;
+  grid-template-columns: auto 1fr auto; /* $ | NUM | C/U */
+  column-gap: 8px;
+  align-items: baseline;
+  max-width:100%;
+}
+.price-inner .num{ display:block; max-width:100%; overflow:hidden; }
+.money{ white-space:nowrap; line-height:1; }
+
+/* Texto producto seguro */
+.product{ min-width:0; padding:0 8px; }
+.product > div{
+  display:block;
+  max-width:100%;
+  overflow:hidden;
+  white-space:normal;
+  overflow-wrap:anywhere;
+  hyphens:auto;
+}
+</style>
+
+
+<!-- detail-size-override -->
+<style>
+/* === Tamaño del texto "AL DETALLE" / "PRECIO X KILO" / "PRECIO X 1/4" ===
+   Cambia SOLO este valor para ajustar el tamaño del texto del recuadro de detalle. */
+:root { --DETAIL_TEXT_PX: 30px; } /* <-- AJUSTA AQUÍ (ej: 32px, 44px) */
+.detail > div{ font-size: var(--DETAIL_TEXT_PX) !important; line-height:1; }
+</style>
+
+
+<!-- hard-lock-symbols-css -->
+<style>
+/* Congela el tamaño de $ y C/U por CSS (prevalece sobre estilos inline) */
+#sign1,#sign2,#sign3{ font-size: 26px !important; }
+#cu1,#cu2,#cu3{ font-size: 22px !important; }
+
+/* Asegura la grilla de precio para columna central del número */
+.price-inner{
+  display:grid;
+  grid-template-columns:auto 1fr auto;
+  column-gap:8px;
+  align-items:baseline;
+  max-width:100%;
+}
+.price-inner .num{ display:block; max-width:100%; overflow:hidden; }
+.money{ white-space:nowrap; line-height:1; }
+</style>
+
+
+<!-- hide-price-slider-ui -->
+<style>
+#sPrice, label[for="sPrice"] { display:none !important; }
+</style>
+
+
+<!-- hide-price-row-and-sProd-input -->
+<style>
+/* Oculta toda la fila del slider de PRECIO (label + barra) */
+.sl:has(#sPrice){ display:none !important; }
+#sPrice{ display:none !important; }
+label[for="sPrice"]{ display:none !important; }
+/* Oculta SOLO la barra del slider PRODUCTO global (dejamos el texto "PRODUCTO") */
+#sProd{ display:none !important; }
+</style>
+
+
+<style>
+/* === Modal base === */
+.modal-overlay{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.5);z-index:999999}
+.modal-overlay.show{display:flex}
+.modal-card{width:min(640px,94vw);background:#111;color:#eee;border-radius:12px;padding:18px;border:1px solid #2a2a2a;box-shadow:0 10px 30px rgba(0,0,0,.5);font-family:system-ui,Segoe UI,Roboto,Arial}
+.modal-card h3{margin:0 0 10px;font-size:18px;font-weight:700}
+.modal-grid{display:grid;grid-template-columns:1fr;gap:10px}
+.modal-grid label{font-size:12px;color:#cfcfcf}
+.modal-grid input, .modal-grid select{width:100%;padding:10px;border-radius:10px;border:1px solid #3a3a3a;background:#1b1b1b;color:#fff;font-size:14px;outline:none}
+.modal-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:14px}
+.modal-actions button{padding:10px 14px;border-radius:10px;border:0;cursor:pointer}
+.btn-sec{background:#262626;color:#e6e6e6}
+.btn-pri{background:#0ea5e9;color:white;font-weight:600}
+.small{font-size:12px;color:#bdbdbd}
+.err{color:#ff7b7b;font-size:12px;min-height:16px}
+/* table */
+.table{width:100%;border-collapse:collapse;margin-top:6px}
+.table th,.table td{border-bottom:1px solid #2a2a2a;padding:8px;text-align:left;font-size:14px}
+.table th{color:#bdbdbd;font-weight:600}
+.table td .del{background:#3b82f6;color:#fff;border:0;border-radius:8px;padding:4px 8px;cursor:pointer}
+/* little button in UI (optional) */
+#btnOpenPM{position:fixed;right:14px;bottom:14px;z-index:99999;background:#374151;color:#fff;border:0;border-radius:999px;padding:10px 14px;font-weight:600;cursor:pointer;box-shadow:0 8px 20px rgba(0,0,0,.35)}
+#btnOpenPM:hover{filter:brightness(1.05)}
+@media print{#btnOpenPM{display:none}}
+</style>
+
+
+<!-- hide producto/precio headings and their rows in 'Tamaño de texto' -->
+<style>
+  .box.sliders .row:has(#sProd),
+  .box.sliders .row:has(#sPrice) { display: none !important; }
+</style>
+
+
+<style>
+/* === Ajustes editables de espacio alrededor del LOGO ===
+   Cambia los valores de estas variables para ajustar los espacios.
+   Sugerencias:
+   --logo-pad-top / --logo-pad-bottom: 0rem a 0.6rem
+   --detail-bottom: 0rem a 0.6rem
+   --detail-lineheight: 0.95 a 1.15
+   --content-row-gap: 0rem (sin separación) a 0.5rem
+*/
+:root{
+  --logo-pad-top: 0.10rem;       /* espacio entre “AL DETALLE” y el logo */
+  --logo-pad-bottom: 0.1rem;    /* espacio entre el logo y la línea inferior */
+  --detail-bottom: 0rem;         /* espacio debajo de “AL DETALLE” */
+  --detail-lineheight: 1.00;     /* altura de línea del texto “AL DETALLE” */
+  --content-row-gap: 0rem;       /* separación vertical entre secciones del cartel */
+}
+
+/* 1) Menos espacio debajo de “AL DETALLE” */
+#slot1 .detail, #slot2 .detail, #slot3 .detail{
+  margin-bottom: 0 !important;
+  padding-bottom: var(--detail-bottom) !important;
+}
+#slot1 .detail > div, #slot2 .detail > div, #slot3 .detail > div{
+  line-height: var(--detail-lineheight) !important;
+}
+
+/* 2) Espacio arriba/abajo del LOGO (soporta .logo, .brand y los ids #logo1..3) */
+#slot1 .logo, #slot2 .logo, #slot3 .logo,
+#slot1 .brand, #slot2 .brand, #slot3 .brand,
+#logo1, #logo2, #logo3{
+  margin-top: 0 !important;
+  padding-top: var(--logo-pad-top) !important;
+  padding-bottom: var(--logo-pad-bottom) !important;
+}
+
+/* 3) Quita separación vertical entre bloques del cartel */
+#slot1 .content, #slot2 .content, #slot3 .content{
+  row-gap: var(--content-row-gap) !important;
+  gap: var(--content-row-gap) !important;
+}
+</style>
+
+
+<style id="solo-cartel1-stable">
+/* Ocultar todo lo de carteles 2 y 3 sin eliminar nada */
+#slot2, #slot3,
+#box2, #box3,
+#c2, #c3,
+#readP2, #readP3,
+#sProd2, #sProd3,
+#p2, #r2, #d2,
+#p3, #r3, #d3,
+#sign2, #sign3, #money2, #money3, #cu2, #cu3,
+#prod2, #prod3, #det2, #det3, #logo2, #logo3,
+#offer2, #offer3 { display: none !important; visibility: hidden !important; }
+</style>
+
+
+<style id="offer-top-override">
+/* Colocar ¡OFERTA! arriba (horizontal) */
+.slot{ display:flex; flex-direction:column; }
+.offer-band{
+  width:100%; min-width:0;
+  border-right:none; border-bottom:2px solid var(--border);
+  display:flex; align-items:center; justify-content:center;
+  padding:8px 10px; background:#fff;
+}
+.offer-text{
+  writing-mode: initial; transform:none;
+  font-weight:900; letter-spacing:.5px;
+  font-size: var(--offer-size) !important;
+}
+</style>
+
+
+<style id="fullpage-override">
+/* Ocupa toda la hoja: 8.5in x 11in, sin márgenes */
+:root{ --slot-h: 100% !important; }
+.page{
+  width: 8.5in; height: 11in;
+  margin: 0 !important;
+  display: flex; flex-direction: column;
+}
+.slot{
+  flex: 1 1 auto !important;
+  height: 100% !important;
+}
+@page{ size: 8.5in 11in; margin: 0; }
+@media print{
+  html, body{ margin:0; padding:0; }
+  .page{ width:8.5in; height:11in; }
+}
+</style>
+
+
+<style id="oferta-tune">
+/* ¡OFERTA! más grande + fondo #F2F2F2 y borde rectangular (sin redondeo) */
+.offer-band{
+  background: #F2F2F2 !important;
+  border: 3px solid #000 !important;
+  border-radius: 0 !important;
+  padding: 14px 16px !important;
+}
+.offer-text{
+  font-size: 96px !important;
+  color: #000 !important;
+  font-weight: 900;
+  letter-spacing: .06em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+@media print{
+  .offer-band{ background: #F2F2F2 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
+</style>
+
+
+<style id="print-letter-setup">
+/* Configuración de impresión: Hoja Carta (8.5in x 11in) */
+@page {
+  size: 8.5in 11in;    /* también puedes usar: size: letter; */
+  margin: 0;           /* sin márgenes del navegador */
+}
+@media print {
+  html, body { width: 8.5in; height: 11in; margin: 0; padding: 0; }
+  /* Ajusta contenedor principal si existe */
+  .page, .paper, .sheet { width: 8.5in !important; height: 11in !important; margin: 0 !important; }
+  /* Asegurar colores/fondos */
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
+</style>
+
+
+<style id="cartel-border-off">
+/* Quitar bordes negros del cartel (mantener solo en OFERTA) */
+.page, .paper, .sheet, #slot1, .slot, .content, .product, .price, .price-inner, .detail, .logo, .logo-wrap {
+  border: none !important;
+  border-radius: 0 !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+/* Asegurar que la franja de OFERTA conserve su borde */
+.offer-band { border: 3px solid #000 !important; border-radius: 0 !important; }
+</style>
+
+
+<style id="oferta-text-red">
+/* Texto de ¡OFERTA! en rojo */
+.offer-text{
+  color: #FF0000 !important;
+}
+@media print{
+  .offer-text{ -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
+</style>
+
+
+<style id="detalle-size-control">
+/* === CONTROL DEL TAMAÑO DEL DETALLE ===
+   Cambia el valor de --detalle-size para ajustar el tamaño del texto de Detalle (#det1).
+   Ejemplos: 24px, 32px, 2rem
+*/
+:root{ --detalle-size: 50px; }   /* << EDITA AQUÍ */
+#det1{ font-size: var(--detalle-size) !important; line-height: 1.15; }
+</style>
+
+
+<style id="price-color-split">
+/* Solo el número en rojo; $ y C/U en negro */
+#money1 { color: #FF0000 !important; }
+#sign1, #cu1 { color: #000000 !important; }
+@media print{
+  #money1, #sign1, #cu1 { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
+</style>
+
+<style>
+/* ==== LOGO altura fija (bloquea el slider) ==== */
+#logo1, #logo2, #logo3,
+#slot1 .logo, #slot2 .logo, #slot3 .logo {
+  height: 174px !important;
+  min-height: 174px !important;
+  max-height: 174px !important;
+  flex: 0 0 auto !important; /* evita estiramientos por flex */
+}
+
+/* Oculta el control "Tamaño del logo" del panel */
+#logoSizeBox { display: none !important; }
+</style>
+
+<style id="printed-code-style">
+.printed-code{
+  position:absolute;
+  right:10px;
+  bottom:6px;
+  font-size:10px;
+  color:#6b7280;
+  font-weight:700;
+  letter-spacing:0.5px;
+  opacity:0.95;
+  pointer-events:none;
+  user-select:none;
+}
+@media print{
+  .printed-code{ -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
+</style>
+
+
+
+    <!-- FIX base v12f: 1 hoja normal + logo 160px en impresión -->
+    <style id="fix-single-page-print-v12f">
+      @media print {
+        @page { size: 8.5in 11in; margin: 0; }
+        header, .panel, .modal-overlay { display: none !important; }
+        html, body {
+          margin: 0 !important;
+          padding: 0 !important;
+          height: 11in !important;
+          max-height: 11in !important;
+          overflow: hidden !important;
+          background: #fff !important;
+        }
+        .page {
+          box-shadow: none !important;
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+        }
+        /* LOGO más chico (solo impresión) */
+        #slot1 .logo img, .logo img, #logo1 {
+          height: 160px !important;
+          width: auto !important;
+          max-height: 160px !important;
+          object-fit: contain !important;
+        }
+        .printed-code { bottom: 24px !important; right: 18px !important; }
+      }
+    </style>
+
+
+    <!-- 2 copias apiladas + MISMO top en ambas páginas -->
+    <style id="stack-and-equal-top-both">
+      :root{ --page-top: 6mm; }  /* Ajusta aquí si quieres más/menos margen arriba */
+      @media print {
+        /* Evitar columns/flex en impresión y mantener ancho natural */
+        html, body, main, .page-wrap, .container, .wrapper {
+          display: block !important;
+          column-count: initial !important;
+          column-gap: 0 !important;
+          padding: 0 !important;
+          margin: 0 !important;
+          background: #fff !important;
+        }
+        /* Cada .page centrada y con el mismo padding-top */
+        .page {
+          display: block !important;
+          margin-left: auto !important;
+          margin-right: auto !important;
+          break-inside: avoid-page !important;
+          box-sizing: border-box !important;
+          padding-top: var(--page-top) !important;   /* ← NUEVO: mismo top en ambas */
+        }
+        /* Salto entre páginas y sin hoja extra */
+        .page + .page { page-break-before: always !important; break-before: page !important; }
+        .page:last-child { page-break-after: avoid !important; break-after: avoid-page !important; padding-bottom: 0.01px !important; }
+      }
+    </style>
+
+
+    <script id="two-copies-before-afterprint-equal-both">
+      (function () {
+        var added = false, clone = null, relaxStyle = null;
+        function addSecondPage() {
+          if (added) return;
+          var page = document.querySelector('.page');
+          if (!page) return;
+          clone = page.cloneNode(true);
+          page.parentNode.insertBefore(clone, page.nextSibling);
+          relaxStyle = document.createElement('style');
+          relaxStyle.id = 'relax-print-canvas-v12j3';
+          relaxStyle.textContent = '@media print{ html,body{ height:auto !important; max-height:none !important; overflow:visible !important; } }';
+          document.head.appendChild(relaxStyle);
+          added = true;
+        }
+        function restoreAfterPrint() {
+          if (!added) return;
+          try { if (clone && clone.parentNode) clone.parentNode.removeChild(clone); } catch(_) {}
+          try { if (relaxStyle && relaxStyle.parentNode) relaxStyle.parentNode.removeChild(relaxStyle); } catch(_) {}
+          clone = null; relaxStyle = null; added = false;
+        }
+        window.addEventListener('beforeprint', addSecondPage);
+        window.addEventListener('afterprint', restoreAfterPrint);
+        if (window.matchMedia) {
+          var mql = window.matchMedia('print');
+          var handler = function (e) { if (e.matches) addSecondPage(); else setTimeout(restoreAfterPrint, 0); };
+          try { mql.addEventListener('change', handler); } catch(_) { mql.addListener(handler); }
+        }
+      })();
+    </script>
+
+
+    <!-- SIZE OVERRIDE 2025-09-07: $ y C/U -->
+    <style id="sign-cu-size-2025-09-07">
+      /* Tamaños solicitados */
+      #sign1,#sign2,#sign3{ font-size: 70px !important; line-height: 1 !important; }
+      #cu1,#cu2,#cu3{     font-size: 50px !important; line-height: 1 !important; }
+    </style>
+
+<!-- #offer-size-variable :: 2025-09-07
+     Cambia el tamaño de “¡OFERTA!” editando solo esta variable de abajo. -->
+<style id="offer-size-variable">
+  :root{
+    /* ← AJUSTA AQUÍ (px) */
+    --offer-title-size: 120px;
+  }
+  /* Override final, aplica en pantalla y al imprimir */
+  .offer-text{
+    font-size: var(--offer-title-size, 96px) !important;
+  }
+</style>
+
+
+<!-- #offer-fixed-band :: 2025-09-07
+     Mantiene la banda de ¡OFERTA! con altura fija (no crece) y alinea el texto (centro por defecto).
+     Ajusta las variables de abajo según necesites. -->
+<style id="offer-fixed-band">
+  :root{
+    /* Altura fija de la banda de ¡OFERTA! (aplica pantalla e impresión) */
+    --offer-band-height: 130px;
+    /* Alineación vertical del texto dentro de la banda: center | flex-start | flex-end */
+    --offer-valign: center;
+  }
+  .offer-band{
+    height: var(--offer-band-height);
+    min-height: var(--offer-band-height);
+    max-height: var(--offer-band-height);
+    display: flex !important;
+    align-items: var(--offer-valign, center) !important;  /* centrado vertical (editable) */
+    justify-content: center;                              /* centrado horizontal */
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    box-sizing: border-box;
+    overflow: hidden;   /* evita que el contenido haga crecer la banda */
+  }
+  .offer-text{
+    line-height: 1;
+    margin: 0;
+    white-space: nowrap; /* evita salto de línea que podría alterar la altura visual */
+  }
+  @media print{
+    .offer-band{
+      height: var(--offer-band-height) !important;
+      min-height: var(--offer-band-height) !important;
+      max-height: var(--offer-band-height) !important;
+    }
+  }
+</style>
+
+
+<!-- #offer-text-nudge :: 2025-09-07
+     Microajuste vertical del texto de ¡OFERTA! sin cambiar el alto de la banda.
+     Valor positivo = baja el texto; valor negativo = lo sube. -->
+<style id="offer-text-nudge">
+  :root{
+    /* AJUSTA AQUÍ: usa 0–12px típicamente */
+    --offer-nudge-y: -6px;
+  }
+  .offer-text{
+    position: relative;
+    transform: translateY(var(--offer-nudge-y));
+  }
+  @media print{
+    .offer-text{
+      transform: translateY(var(--offer-nudge-y)) !important;
+    }
+  }
+</style>
+
+
+<!-- #offer-punct-align :: 2025-09-07
+     Alinea la “¡” (y la “!” si quieres) con el texto mediante micro-ajuste vertical. -->
+<style id="offer-punct-align">
+  :root{
+    /* Valores típicos: -2px a -8px para subir la “¡”. Positivo baja. */
+    --offer-inv-nudge-y: -22px;   /* “¡” → súbela con valores negativos */
+    --offer-excl-nudge-y: 0px;   /* “!”  → ajusta si la ves desalineada */
+  }
+  .offer-text .offer-inv{ display:inline-block; transform: translateY(var(--offer-inv-nudge-y)); }
+  .offer-text .offer-exc{ display:inline-block; transform: translateY(var(--offer-excl-nudge-y)); }
+  @media print{
+    .offer-text .offer-inv{ transform: translateY(var(--offer-inv-nudge-y)) !important; }
+    .offer-text .offer-exc{ transform: translateY(var(--offer-excl-nudge-y)) !important; }
+  }
+</style>
+
+</head>
+<body>
+<header>
+  <h1>Impresor de Precios — v06p</h1>
+  <span class="muted">Reversión a la vista de v06n (banda OFERTA original).</span>
+</header>
+<main>
+  <div class="panel">
+    <h2>Cantidad de carteles</h2>
+    <div class="box"><div class="seg"><button id="c1" class="active">1</button><button id="c2">2</button><button id="c3">3</button></div></div>
+
+    <h2>Datos</h2>
+    <div id="box1" class="box"><div class="row"><label>Producto 1</label><input id="p1" type="text" value="CHULETA CERDO CENTRO PORCINADO FRIGO" /></div>
+    <div class="row"><div><label>Precio 1 (CLP)</label><input id="r1" type="text" value="6890" /></div><div><label>Texto 1</label><select id="d1"></select></div></div></div>
+    <div id="box2" class="box" style="display:none;"><div class="row"><label>Producto 2</label><input id="p2" type="text" value="PECHUGA ENTERA POLLO ARIZTIA" /></div>
+    <div class="row"><div><label>Precio 2 (CLP)</label><input id="r2" type="text" value="6490" /></div><div><label>Texto 2</label><select id="d2"></select></div></div></div>
+    <div id="box3" class="box" style="display:none;"><div class="row"><label>Producto 3</label><input id="p3" type="text" value="POLLO TRUTRO 1/4 ARIZTIA" /></div>
+    <div class="row"><div><label>Precio 3 (CLP)</label><input id="r3" type="text" value="2990" /></div><div><label>Texto 3</label><select id="d3"></select></div></div></div>
+
+    <div class="box sliders"><h2>Tamaño de texto</h2>
+      <div class="row"><label>PRODUCTO</label><input id="sProd" type="range" min="0.6" max="2.0" step="0.05" value="1.30"></div>
+      <div class="row"><label>PRECIO</label><input id="sPrice" type="range" min="0.6" max="2.0" step="0.05" value="1.00"></div>
+      <!-- DETALLE tamaño fijo -->
+    </div>
+
+    <div class="box">
+      <h2>Logo</h2>
+      <div class="row"><input id="logoFile" type="file" accept="image/*"></div>
+      <div class="row"><button class="ghost" id="clearLogo">Quitar logo</button></div>
+      <div class="muted">Si no cargas logo, se muestra un logo genérico.</div>
+    </div>
+
+    <div class="actions">
+      <button class="primary" id="printBtn">Imprimir / Guardar PDF</button>
+      <button class="linklike" id="resetBtn">Restablecer ejemplo</button>
+    </div>
+  </div>
+
+  <div class="page-wrap"><div class="page" id="page">
+    <div class="slot" id="slot1"><div class="offer-band"><div class="offer-text" id="offer1">¡OFERTA!</div></div>
+      <div class="content"><div class="product"><div id="prod1"></div></div>
+        <div class="price"><div class="price-inner"><div class="sign" id="sign1">$</div><div class="money" id="money1">0</div><div class="cu" id="cu1">C/U</div></div></div>
+        <div class="detail"><div id="det1"></div></div><div class="logo"><div id="logo1" class="placeholder-logo"><div class="top">SUPERMERCADO</div><div class="main">LAS COMPAÑÍAS</div></div></div>
+      </div>
+    </div>
+    <div class="slot" id="slot2" style="display:none;"><div class="offer-band"><div class="offer-text" id="offer2">¡OFERTA!</div></div>
+      <div class="content"><div class="product"><div id="prod2"></div></div>
+        <div class="price"><div class="price-inner"><div class="sign" id="sign2">$</div><div class="money" id="money2">0</div><div class="cu" id="cu2">C/U</div></div></div>
+        <div class="detail"><div id="det2"></div></div><div class="logo"><div id="logo2" class="placeholder-logo"><div class="top">SUPERMERCADO</div><div class="main">LAS COMPAÑÍAS</div></div></div>
+      </div>
+    </div>
+    <div class="slot" id="slot3" style="display:none;"><div class="offer-band"><div class="offer-text" id="offer3">¡OFERTA!</div></div>
+      <div class="content"><div class="product"><div id="prod3"></div></div>
+        <div class="price"><div class="price-inner"><div class="sign" id="sign3">$</div><div class="money" id="money3">0</div><div class="cu" id="cu3">C/U</div></div></div>
+        <div class="detail"><div id="det3"></div></div><div class="logo"><div id="logo3" class="placeholder-logo"><div class="top">SUPERMERCADO</div><div class="main">LAS COMPAÑÍAS</div></div></div>
+      </div>
+    </div>
+  </div></div>
+</main>
+
+<script>
+// ===== CONFIG =====
+const CONFIG = {
+  PAGE_WIDTH_MM: 168, MARGIN_V_MM: 0, MARGIN_H_MM: 10, GAP_MM: 8, SLOT_HEIGHT_MM: 85,
+  DETAIL_SIZE_PX: 40
+};
+
+// ===== Lista de opciones del DETALLE =====
+const DETAIL_OPTIONS = ["AL DETALLE", "PRECIO UNICO", "PRECIO X KILO"];
+const DEFAULT_DETAIL = "AL DETALLE";
+
+// Utils
+const $ = s => document.querySelector(s);
+const upper = s => (s||"").toString().toUpperCase();
+const formatCLP = s => { const d=(s||"").toString().replace(/\D+/g,""); if(!d) return "0"; return parseInt(d,10).toLocaleString('es-CL'); };
+
+// Aplicar medidas/valores
+document.documentElement.style.setProperty('--page-w',  CONFIG.PAGE_WIDTH_MM + 'mm');
+document.documentElement.style.setProperty('--margin-v',CONFIG.MARGIN_V_MM + 'mm');
+document.documentElement.style.setProperty('--margin-h',CONFIG.MARGIN_H_MM + 'mm');
+document.documentElement.style.setProperty('--gap',      CONFIG.GAP_MM + 'mm');
+document.documentElement.style.setProperty('--slot-h',   CONFIG.SLOT_HEIGHT_MM + 'mm');
+document.documentElement.style.setProperty('--detail-size', CONFIG.DETAIL_SIZE_PX + 'px');
+
+const state = { count:1, sProd:1.30, sPrice:1.00, logoData:null };
+
+function populateSelect(selId){
+  const sel = document.getElementById(selId);
+  sel.innerHTML = DETAIL_OPTIONS.map(t => `<option${t===DEFAULT_DETAIL?' selected':''}>${t}</option>`).join('');
+}
+
+function setCount(n){
+  state.count = Math.max(1, Math.min(3, n));
+  [1,2,3].forEach(i=>{ const b=$('#c'+i); b.classList.toggle('active', i===state.count); });
+  [1,2,3].forEach(i=>{
+    const box = document.getElementById('box'+i); if(box) box.style.display = (i<=state.count)?'block':'none';
+    document.getElementById('slot'+i).style.display = (i<=state.count)?'flex':'none';
+  });
+  
+  // Mostrar sliders por cantidad seleccionada
+  ['sProd1','sProd2','sProd3'].forEach(function(id, idx){
+    var el = document.getElementById(id);
+    if (el){
+      var row = el.closest ? el.closest('.sl') : el.parentElement;
+      if (row){ row.style.display = ((idx+1) <= state.count) ? '' : 'none'; }
+    }
+  });
+
+  applyInputs();
+}
+
+function applyInputs(){
+  const p=[ upper($('#p1').value), upper($('#p2').value), upper($('#p3').value) ];
+  const r=[ $('#r1').value, $('#r2').value, $('#r3').value ];
+  const d=[ upper($('#d1').value), upper($('#d2').value), upper($('#d3').value) ];
+  const money=[ formatCLP(r[0]), formatCLP(r[1]), formatCLP(r[2]) ];
+  for(let i=1;i<=3;i++){
+    if(i<=state.count){ $('#prod'+i).textContent = p[i-1]; $('#money'+i).textContent = money[i-1]; $('#det'+i).textContent = d[i-1]; }
+  }
+  const baseProd=46, basePrice=120;
+  for(let i=1;i<=state.count;i++){
+    $('#prod'+i).style.fontSize  = (baseProd * state.sProd) + 'px';
+    $('#money'+i).style.fontSize = (basePrice * state.sPrice) + 'px';
+    $('#sign'+i).style.fontSize  = Math.max(8,(basePrice * state.sPrice * 0.45)) + 'px';
+    $('#cu'+i).style.fontSize    = Math.max(8,(basePrice * state.sPrice * 0.40)) + 'px';
+    // [Cambio v20b→v20c] Ocultar 'C/U' si el Detalle es 'PRECIO X KILO'
+    $('#cu'+i).style.display = (d[i-1] === 'PRECIO X KILO') ? 'none' : '';
+  }
+  // logo
+  for(let i=1;i<=3;i++){
+    const wrap = document.getElementById('logo'+i);
+    if(i>state.count){ wrap.innerHTML=''; continue; }
+    if(state.logoData){ wrap.classList.remove('placeholder-logo'); wrap.innerHTML=''; const img = new Image(); img.src = state.logoData; img.style.maxWidth='100%'; img.style.maxHeight='100%'; img.style.objectFit='contain'; wrap.appendChild(img); }
+    else { wrap.classList.add('placeholder-logo'); wrap.innerHTML = '<div class="top">SUPERMERCADO</div><div class="main">LAS COMPAÑÍAS</div>'; }
+  }
+}
+
+function initUI(){
+  populateSelect('d1'); populateSelect('d2'); populateSelect('d3');
+
+  $('#c1').addEventListener('click', ()=> setCount(1));
+  $('#c2').addEventListener('click', ()=> setCount(2));
+  $('#c3').addEventListener('click', ()=> setCount(3));
+
+  ['p1','p2','p3','r1','r2','r3'].forEach(id=>{ const el=$('#'+id); el.addEventListener('input', applyInputs); });
+  ['d1','d2','d3'].forEach(id=>{ const el=$('#'+id); el.addEventListener('change', applyInputs); });
+
+  $('#sProd').addEventListener('input', e=>{ state.sProd = parseFloat(e.target.value); applyInputs(); });
+  $('#sPrice').addEventListener('input', e=>{ state.sPrice = parseFloat(e.target.value); applyInputs(); });
+
+  document.getElementById('logoFile').addEventListener('change', e=>{ const f=e.target.files&&e.target.files[0]; if(!f) return; const rd=new FileReader(); rd.onload=ev=>{ state.logoData=ev.target.result; localStorage.setItem('labelLogo', state.logoData); applyInputs(); }; rd.readAsDataURL(f); });
+  document.getElementById('clearLogo').addEventListener('click', ()=>{ state.logoData=null; localStorage.removeItem('labelLogo'); applyInputs(); });
+  const saved = localStorage.getItem('labelLogo'); if(saved) state.logoData = saved;
+
+  document.getElementById('printBtn').addEventListener('click', ()=>{ window.print(); });
+  document.getElementById('resetBtn').addEventListener('click', ()=>{
+    $('#p1').value='CHULETA CERDO CENTRO PORCINADO FRIGO'; $('#r1').value='6890'; $('#d1').value=DEFAULT_DETAIL;
+    $('#p2').value='PECHUGA ENTERA POLLO ARIZTIA'; $('#r2').value='6490'; $('#d2').value=DEFAULT_DETAIL;
+    $('#p3').value='POLLO TRUTRO 1/4 ARIZTIA'; $('#r3').value='2990'; $('#d3').value=DEFAULT_DETAIL;
+    state.sProd=1.30; state.sPrice=1.00; document.getElementById('sProd').value=state.sProd; document.getElementById('sPrice').value=state.sPrice;
+    setCount(1); applyInputs();
+  });
+
+  setCount(1); applyInputs();
+}
+
+window.addEventListener('load', initUI);
+</script>
+
+<!-- pricefit-v7-constants -->
+<script>
+(function(){
+  if (window.__fitV7) return; window.__fitV7 = true;
+
+  /* =========  CONFIG — SÍMBOLOS Y PRECIO  =========
+     Cambia SOLO estos valores para ajustar tamaños por defecto:
+     - SYMBOL_DOLLAR_PX  : tamaño fijo del símbolo "$"
+     - SYMBOL_CU_PX      : tamaño fijo del texto "C/U"
+     - PRICE_MAX_PX      : tamaño MÁXIMO del número de precio (punto de partida)
+     - PRICE_MIN_PX      : tamaño MÍNIMO al que puede reducirse el número
+     ================================================= */
+  const SYMBOL_DOLLAR_PX = 26;   // <-- ajusta aquí
+  const SYMBOL_CU_PX     = 22;   // <-- ajusta aquí
+  const PRICE_MAX_PX     = 135;  // <-- ajusta aquí (el número SIEMPRE parte en este tamaño)
+  const PRICE_MIN_PX     = 28;   // <-- ajusta aquí (límite inferior seguro)
+
+  function px(n){ return n + 'px'; }
+  function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
+  function num(x,fb){ var n=parseFloat(x); return isNaN(n)? fb : n; }
+
+  function wrapNumberCell(i){
+    var wrap  = document.querySelector('#slot'+i+' .price-inner');
+    var money = document.getElementById('money'+i);
+    if (!wrap || !money) return null;
+    var numWrap = wrap.querySelector('.num');
+    if (!numWrap){
+      numWrap = document.createElement('span');
+      numWrap.className = 'num';
+      money.replaceWith(numWrap);
+      numWrap.appendChild(money);
+    }
+    return numWrap;
+  }
+
+  function setFixedSymbols(i){
+    var sign = document.getElementById('sign'+i);
+    var cu   = document.getElementById('cu'+i);
+    if (!sign || !cu) return;
+    sign.style.fontSize = px(SYMBOL_DOLLAR_PX);
+    cu.style.fontSize   = px(SYMBOL_CU_PX);
+  }
+
+  function fitWidth(el, box, minPx, maxPx){
+    var size = clamp(num(getComputedStyle(el).fontSize, maxPx), minPx, maxPx);
+    el.style.fontSize = px(size);
+    var guard=0;
+    while (box.scrollWidth > box.clientWidth && size > minPx && guard++ < 800){
+      size -= 1; el.style.fontSize = px(size);
+    }
+    guard=0;
+    while (box.scrollWidth <= box.clientWidth && size < maxPx && guard++ < 800){
+      var next = Math.min(size+1, maxPx);
+      el.style.fontSize = px(next);
+      if (box.scrollWidth > box.clientWidth){ el.style.fontSize = px(size); break; }
+      size = next;
+    }
+    return size;
+  }
+
+  function fitHeights(i, limits){
+    var slot  = document.getElementById('slot'+i);
+    var money = document.getElementById('money'+i);
+    var prod  = document.getElementById('prod'+i);
+    if (!slot || !money || !prod) return;
+    var pSize = num(getComputedStyle(money).fontSize, limits.maxPricePx);
+    var tSize = num(getComputedStyle(prod).fontSize,  limits.maxTextPx);
+    var guard=0;
+    while (slot.scrollHeight > slot.clientHeight && guard++ < 800){
+      if (tSize > limits.minTextPx){ tSize -= 1; prod.style.fontSize = px(tSize); }
+      else if (pSize > limits.minPricePx){ pSize -= 1; money.style.fontSize = px(pSize); }
+      else break;
+    }
+  }
+
+  function adjustOne(i){
+    setFixedSymbols(i);
+
+    var numWrap = wrapNumberCell(i);
+    var money   = document.getElementById('money'+i);
+    var prod    = document.getElementById('prod'+i);
+    var sProd   = document.getElementById('sProd');
+    if (!numWrap || !money || !prod) return;
+
+    // 1) Forzar que el NÚMERO parta en PRICE_MAX_PX (luego se reduce si no cabe)
+    money.style.fontSize = px(PRICE_MAX_PX);
+
+    // 2) Ajustar el NÚMERO a su columna central dentro de [PRICE_MIN_PX, PRICE_MAX_PX]
+    fitWidth(money, numWrap, PRICE_MIN_PX, PRICE_MAX_PX);
+
+    // 3) Ajustar el PRODUCTO al ancho disponible (usa slider sProd como ratio si existe)
+    var targetTextPx = num(getComputedStyle(prod).fontSize, 40);
+    var minTextPx = sProd ? targetTextPx * (num(sProd.min, 0.6)/num(sProd.value||1, 1)) : 14;
+    var maxTextPx = targetTextPx;
+    fitWidth(prod, prod.parentElement, minTextPx, maxTextPx);
+
+    // 4) Control de ALTURA total del slot (reduciendo texto antes que precio)
+    fitHeights(i, {minPricePx:PRICE_MIN_PX, maxPricePx:PRICE_MAX_PX, minTextPx:minTextPx, maxTextPx:maxTextPx});
+  }
+
+  function adjustAll(){ for (var i=1;i<=3;i++) adjustOne(i); }
+
+  // Integración con tu app existente
+  function patchApply(){
+    if (window.__fitV7_apply) return;
+    try{
+      var _apply = window.applyInputs;
+      if (typeof _apply === 'function'){
+        window.applyInputs = function(){
+          _apply.apply(this, arguments);
+          adjustAll();
+        };
+        window.__fitV7_apply = true;
+      }
+    }catch(_){}
+  }
+
+  window.addEventListener('load', function(){ patchApply(); adjustAll(); });
+  window.addEventListener('resize', adjustAll);
+  document.addEventListener('input', function(e){
+    var id = e.target && e.target.id || '';
+    if (id === 'r1' || id === 'r2' || id === 'r3' || id === 'sProd'){
+      setTimeout(adjustAll, 0);
+    }
+  });
+})();
+</script>
+
+
+<!-- lock-detail-size -->
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+  function lockDetailSize(){
+    ['det1v','det2v','det3v'].forEach(function(id){
+      var el = document.getElementById(id);
+      if (el){ el.style.fontSize = ''; } // quita cualquier inline para respetar el CSS fijo
+    });
+  }
+  lockDetailSize();
+  try{
+    if (typeof window.applyInputs === 'function'){
+      var _apply = window.applyInputs;
+      window.applyInputs = function(){
+        _apply.apply(this, arguments);
+        lockDetailSize();
+      };
+    }
+  }catch(_){}
+});
+</script>
+
+
+<!-- freeze-on-any-input -->
+<script>
+(function(){
+  if (window.__freezeAllInputsV2) return; window.__freezeAllInputsV2 = true;
+
+  const PRICE_MAX_PX = 500;
+  const PRICE_MIN_PX = 28;
+
+  function px(n){ return n + 'px'; }
+
+  function ensureNumWrap(i){
+    var wrap  = document.querySelector('#slot'+i+' .price-inner');
+    var money = document.getElementById('money'+i);
+    if (!wrap || !money) return null;
+    var numWrap = wrap.querySelector('.num');
+    if (!numWrap){
+      numWrap = document.createElement('span');
+      numWrap.className = 'num';
+      money.replaceWith(numWrap);
+      numWrap.appendChild(money);
+    }
+    return numWrap;
+  }
+
+  function shrinkOnly(i){
+    var numWrap = ensureNumWrap(i);
+    var money = document.getElementById('money'+i);
+    if (!numWrap || !money) return;
+    money.style.fontSize = px(PRICE_MAX_PX);
+    var size = PRICE_MAX_PX, guard = 0;
+    while (numWrap.scrollWidth > numWrap.clientWidth && size > PRICE_MIN_PX && guard++ < 800){
+      size -= 1; money.style.fontSize = px(size);
+    }
+  }
+
+  function adjustAll(){ for (var i=1;i<=3;i++) shrinkOnly(i); }
+
+  // Hook applyInputs (cubre la mayoría de casos)
+  try{
+    var _apply = window.applyInputs;
+    if (typeof _apply === 'function' && !window.__freeze_applyPatched){
+      window.applyInputs = function(){ _apply.apply(this, arguments); adjustAll(); };
+      window.__freeze_applyPatched = true;
+    }
+  }catch(_){}
+
+  window.addEventListener('load', adjustAll);
+  window.addEventListener('resize', adjustAll);
+
+  // Reajusta ante CUALQUIER input relevante (productos, detalles, precios, sliders, etc.)
+  document.addEventListener('input', function(e){
+    var id = e.target && e.target.id || '';
+    if (['p1','p2','p3','d1','d2','d3','r1','r2','r3','sProd','count','detailSelect'].includes(id)){
+      setTimeout(adjustAll, 0);
+    }
+  });
+})();
+</script>
+
+
+<!-- neutralize-sPrice-events -->
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+  var sp = document.getElementById('sPrice');
+  if (sp){
+    sp.disabled = true;
+    sp.addEventListener('input', function(e){ e.stopPropagation(); }, true);
+  }
+});
+</script>
+
+
+<!-- inject-per-cartel-sliders-into-textsize-box -->
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+  var prodInput = document.getElementById('sProd');
+  var box = prodInput ? prodInput.closest('.box') : null;
+  if (!box || document.getElementById('perCartelSliders')) return;
+
+  var wrap = document.createElement('div');
+  wrap.id = 'perCartelSliders';
+  wrap.innerHTML = ''
+    + '<div class="sl" style="margin-top:8px"><span style="min-width:110px;display:inline-block">Cartel 1</span>'
+    + '  <input id="sProd1" type="range" min="12" max="90" step="1" value="46">'
+    + '  <span id="readP1" class="muted" style="margin-left:8px">46 px</span>'
+    + '</div>'
+    + '<div class="sl" style="margin-top:6px"><span style="min-width:110px;display:inline-block">Cartel 2</span>'
+    + '  <input id="sProd2" type="range" min="12" max="90" step="1" value="46">'
+    + '  <span id="readP2" class="muted" style="margin-left:8px">46 px</span>'
+    + '</div>'
+    + '<div class="sl" style="margin-top:6px"><span style="min-width:110px;display:inline-block">Cartel 3</span>'
+    + '  <input id="sProd3" type="range" min="12" max="90" step="1" value="46">'
+    + '  <span id="readP3" class="muted" style="margin-left:8px">46 px</span>'
+    + '</div>';
+  box.appendChild(wrap);
+});
+</script>
+
+
+<!-- per-cartel-sliders-logic-manual -->
+<script>
+(function(){
+  if (window.__perCartelV2) return; window.__perCartelV2 = true;
+
+  function px(n){ return n + 'px'; }
+  function val(id, d){ var el=document.getElementById(id); return el? parseFloat(el.value)||d : d; }
+  function setRead(i, v){ var r=document.getElementById('readP'+i); if(r) r.textContent = Math.round(v)+' px'; }
+
+  function applySize(i){
+    var size = val('sProd'+i, 46);
+    var prod = document.getElementById('prod'+i);
+    if (prod){ prod.style.fontSize = px(size); setRead(i, size); }
+  }
+  function applyAll(){ [1,2,3].forEach(applySize); }
+
+  function wire(){
+    ['sProd1','sProd2','sProd3'].forEach(function(id){
+      var el = document.getElementById(id);
+      if (el){ el.addEventListener('input', applyAll); }
+    });
+  }
+
+  // Hook applyInputs: re-aplica tamaños luego de cada cambio de campos
+  function patchApply(){
+    if (window.__perCartel_applyV2) return;
+    try{
+      var _apply = window.applyInputs;
+      if (typeof _apply === 'function'){
+        window.applyInputs = function(){
+          _apply.apply(this, arguments);
+          applyAll();
+        };
+        window.__perCartel_applyV2 = true;
+      }
+    }catch(_){}
+  }
+
+  window.addEventListener('DOMContentLoaded', function(){
+    wire(); applyAll();
+  });
+  window.addEventListener('load', function(){
+    patchApply(); applyAll();
+  });
+  document.addEventListener('input', function(e){
+    var id = e.target && e.target.id || '';
+    if (['p1','p2','p3','d1','d2','d3','r1','r2','r3'].includes(id)){
+      setTimeout(applyAll, 0);
+    }
+  });
+})();
+</script>
+
+
+<!-- init-defaults-EJEMPLO-990-FORCE -->
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+  function setVal(id, v){ var el=document.getElementById(id); if(el){ el.value=v; } }
+  ['p1','p2','p3'].forEach(function(id){ setVal(id, 'EJEMPLO'); });
+  ['r1','r2','r3'].forEach(function(id){ setVal(id, '990'); });
+  try{ if (typeof applyInputs === 'function') applyInputs(); }catch(_){}
+});
+</script>
+
+
+<!-- === MODAL: Autorización por CÓDIGO === -->
+<div class="modal-overlay" id="authModal2">
+  <div class="modal-card">
+    <h3>Autorización de impresión</h3>
+    <div class="modal-grid">
+      <div>
+        <label for="authCodigo2">Código de verificación (4 dígitos)</label>
+        <input id="authCodigo2" type="password" inputmode="numeric" maxlength="4" placeholder="****" autocomplete="one-time-code">
+      </div>
+      <div id="authPickWrap" style="display:none">
+        <label for="authPick">Selecciona tu nombre (códigos duplicados)</label>
+        <select id="authPick"></select>
+      </div>
+      <div class="small">Tip: abre el gestor de personal con <b>Ctrl + Alt + P</b></div>
+      <div class="err" id="authErr2"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-sec" id="authCancel2">Cancelar</button>
+      <button class="btn-pri" id="authOK2">Confirmar e imprimir</button>
+    </div>
+  </div>
+</div>
+
+<!-- === MODAL: Gestor de Personal === -->
+<div class="modal-overlay" id="pmModal">
+  <div class="modal-card">
+    <h3>Gestor de Personal</h3>
+    <div class="modal-grid">
+      <div>
+        <label for="pmNombre">Nombre</label>
+        <input id="pmNombre" type="text" placeholder="Ej: Ignacio Matías Fernández Illañes">
+      </div>
+      <div>
+        <label for="pmRUT">RUT (sin puntos, con guion)</label>
+        <input id="pmRUT" type="text" placeholder="12345678-9">
+        <div class="small">El sistema calculará el <b>código</b> (2 primeros + 2 últimos del RUT antes del guion)</div>
+      </div>
+      <div class="err" id="pmErr"></div>
+      <div class="modal-actions" style="justify-content:flex-start">
+        <button class="btn-pri" id="pmAdd">Agregar</button>
+        <button class="btn-sec" id="pmExport">Exportar REGISTRO</button>
+        <button class="btn-sec" id="pmClose">Cerrar</button>
+      </div>
+      <table class="table" id="pmTable">
+        <thead><tr><th>Nombre</th><th>RUT</th><th>Código</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<button id="btnOpenPM" title="Gestor de Personal">🧑 Personal</button>
+
+<script>
+(function(){
+  // ==== Helpers RUT / código ====
+  const normalizeRut = rut => (rut||"").toString().replace(/\./g,"").trim();
+  const rutBase = rut => normalizeRut(rut).split("-")[0] || "";
+  const codeFromRut = rut => {
+    const base = rutBase(rut).replace(/\D/g,"");
+    if (base.length < 4) return "";
+    return base.slice(0,2) + base.slice(-2);
+  };
+
+  // ==== Storage ====
+  const LS_PERSONNEL = "PERSONNEL_REG_V1";
+  const LS_LOGS = "PRINT_LOGS_V3";
+
+  const loadPersonnel = () => {
+    try { return JSON.parse(localStorage.getItem(LS_PERSONNEL) || "[]"); } catch { return []; }
+  };
+  const savePersonnel = (list) => localStorage.setItem(LS_PERSONNEL, JSON.stringify(list||[]));
+
+  const getLogs = () => {
+    try { return JSON.parse(localStorage.getItem(LS_LOGS) || "[]"); } catch { return []; }
+  };
+  const pushLog = (entry) => {
+    const a = getLogs();
+    a.push(entry);
+    localStorage.setItem(LS_LOGS, JSON.stringify(a));
+  };
+
+  // ==== UI refs ====
+  const $ = id => document.getElementById(id);
+  // --- Sello con código de impresión en cada cartel ---
+  function setPrintedCode(code){
+    for (var i=1;i<=3;i++){
+      var slot = document.getElementById('slot'+i);
+      if (!slot) continue;
+      // omite carteles ocultos
+      if (slot.style.display === 'none' || slot.offsetParent === null) continue;
+      var content = slot.querySelector('.content');
+      if (!content) continue;
+      var tag = content.querySelector('.printed-code');
+      if (!tag){
+        tag = document.createElement('div');
+        tag.className = 'printed-code';
+        content.appendChild(tag);
+      }
+      tag.textContent = code;
+    }
+  }
+
+
+  // Auth modal
+  const authModal = $("authModal2");
+  const authCodigo = $("authCodigo2");
+  const authErr = $("authErr2");
+  const authPickWrap = $("authPickWrap");
+  const authPick = $("authPick");
+  $("authCancel2").addEventListener("click", () => hideAuth());
+  $("authOK2").addEventListener("click", () => confirmAuth());
+
+  // PM modal
+  const pmModal = $("pmModal");
+  const pmNombre = $("pmNombre");
+  const pmRUT = $("pmRUT");
+  const pmErr = $("pmErr");
+  const pmTable = $("pmTable").querySelector("tbody");
+  $("pmAdd").addEventListener("click", () => addPerson());
+  $("pmClose").addEventListener("click", () => hidePM());
+  $("pmExport").addEventListener("click", () => downloadCSV());
+  $("btnOpenPM").addEventListener("click", () => showPM());
+
+  // Shortcuts
+  document.addEventListener("keydown", (e) => {
+    if (e.ctrlKey && e.altKey && (e.key==="p" || e.key==="P")) { e.preventDefault(); showPM(); }
+    if (e.ctrlKey && e.altKey && (e.key==="l" || e.key==="L")) { e.preventDefault(); downloadCSV(); }
+  });
+
+  // ==== Modal show/hide ====
+  function showAuth(){
+    authCodigo.value = "";
+    authErr.textContent = "";
+    authPickWrap.style.display = "none";
+    authPick.innerHTML = "";
+    authModal.classList.add("show");
+    setTimeout(() => authCodigo.focus(), 10);
+  }
+  function hideAuth(){ authModal.classList.remove("show"); }
+
+  function __showPM_inner(){
+    pmErr.textContent = "";
+    pmNombre.value = "";
+    pmRUT.value = "";
+    renderPM();
+    pmModal.classList.add("show");
+  }
+
+function showPM(){
+  // Password gate
+  const PWD_SECRET = "ELMISMISIMOCSM";
+  let v = prompt("Contraseña para gestionar personal:");
+  if (v === null) return; // cancel
+  if (v !== PWD_SECRET){
+    alert("Contraseña incorrecta.");
+    return;
+  }
+  return __showPM_inner();
+}
+
+  function hidePM(){ pmModal.classList.remove("show"); }
+
+  // ==== PM logic ====
+  function renderPM(){
+    const list = loadPersonnel();
+    pmTable.innerHTML = "";
+    for (const p of list){
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td>${escapeHtml(p.nombre||"")}</td><td>${escapeHtml(p.rut||"")}</td><td>${escapeHtml(p.code||"")}</td>
+      <td><button class="del">Eliminar</button></td>`;
+      tr.querySelector(".del").addEventListener("click", () => {
+        const after = loadPersonnel().filter(x => x.rut !== p.rut);
+        savePersonnel(after);
+        renderPM();
+      });
+      pmTable.appendChild(tr);
+    }
+  }
+  function addPerson(){
+    const nombre = (pmNombre.value||"").trim();
+    const rut = normalizeRut(pmRUT.value||"");
+    if (!nombre) return pmErr.textContent = "Ingresa el nombre.";
+    if (!/^\d{6,9}-[\dkK]$/.test(rut)) return pmErr.textContent = "RUT inválido. Usa 12345678-9.";
+    const code = codeFromRut(rut);
+    if (!code) return pmErr.textContent = "RUT demasiado corto para generar código.";
+    const list = loadPersonnel();
+    if (list.some(x => x.rut === rut)) return pmErr.textContent = "Ya existe un registro con ese RUT.";
+    list.push({ nombre, rut, code });
+    savePersonnel(list);
+    renderPM();
+    pmNombre.value = ""; pmRUT.value = "";
+  }
+  function exportPM(){
+    const rows = loadPersonnel();
+    if (!rows.length) { alert("No hay registros de personal."); return; }
+    const DELIM_PM = ";";
+    const header = ["nombre","rut","code"];
+    const esc = v => `"${String(v??"").replace(/"/g,'""')}"`;
+    const data = ["\ufeff"+header.join(DELIM_PM)].concat(
+      rows.map(r => [esc(r.nombre),esc(r.rut),esc(r.code)].join(","))
+    ).join("\r\n");
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([data], {type:"text/csv;charset=utf-8;"}));
+    const ts = new Date().toISOString().slice(0,19).replace(/[:T]/g,"-");
+    a.download = `personal_${ts}.csv`; document.body.appendChild(a); a.click(); a.remove();
+  }
+
+  // ==== Utils ====
+  function escapeHtml(s){ return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+
+  // ==== Carteles reader ====
+  function slotVisible(i){
+    const el = document.querySelector("#slot"+i);
+    return el ? !!el.offsetParent : true;
+  }
+  function qText(selectors){
+    for (const sel of selectors){
+      const el = document.querySelector(sel);
+      if (el){
+        const v = ("value" in el) ? el.value : el.textContent;
+        if (v && String(v).trim()) return String(v).trim();
+      }
+    }
+    return "";
+  }
+  function readCartel(i){
+    if (!slotVisible(i)) return null;
+    const producto = qText([`#prod${i}`, `#slot${i} .product`]);
+    const detalle  = qText([`#det${i}`, `#slot${i} .detail`]);
+    const precio   = qText([`#money${i}`, `#slot${i} .money`]);
+    if (!producto && !detalle && !precio) return null;
+    return { slot:i, producto, detalle, precio, precio_num: (precio ? Number(String(precio).replace(/\D/g,"")) : 0) };
+  }
+  function readAllCarteles(){
+    const arr=[]; for (let i=1;i<=3;i++){ const x=readCartel(i); if (x) arr.push(x); } return arr;
+  }
+
+  // ==== Logs CSV ====
+  function toCSV(rows){
+    const DELIM = ";";
+    const header = ["fecha_hora","codigo","nombre","rut","slot","producto","detalle","precio"];
+    const esc = v => `"${String(v??"").replace(/"/g,'""')}"`;
+    const out = ["\ufeff"+header.join(DELIM)];
+    for (const r of rows){
+      const list = (r.carteles && r.carteles.length) ? r.carteles : [null];
+      for (const c of list){
+        out.push([esc(r.fecha_hora),esc(r.codigo),esc(r.nombre),esc(r.rut),
+                  esc(c?.slot ?? ""),esc(c?.producto ?? ""),esc(c?.detalle ?? ""),esc(c?.precio ?? "")].join(DELIM));
+      }
+    }
+    return out.join("\r\n");
+  }
+  function downloadCSV(){
+    const logs = getLogs();
+    if (!logs.length) { alert("No hay registros aún."); return; }
+    const csv = toCSV(logs);
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([csv], {type:"text/csv;charset=utf-8;"}));
+    const ts = new Date().toISOString().slice(0,19).replace(/[:T]/g,"-");
+    a.download = `registro_impresiones_${ts}.csv`; document.body.appendChild(a); a.click(); a.remove();
+  }
+  // Expose minimal audit helpers
+  window._cartelAudit = { view: () => {
+      try { console.table(getLogs().flatMap(r => (r.carteles||[]).map(c => ({fecha:r.fecha_hora,codigo:r.codigo,nombre:r.nombre,rut:r.rut,slot:c.slot,producto:c.producto,detalle:c.detalle,precio:c.precio})))) } catch(e) {}
+    }, csv: downloadCSV, clear: () => localStorage.removeItem(LS_LOGS) };
+
+  // ==== Print interception ====
+  const nativePrint = window.print.bind(window);
+  window.print = function(){ showAuth(); };
+
+  function confirmAuth(){
+    const code = (authCodigo.value||"").trim();
+    if (!/^\d{4}$/.test(code)) { authErr.textContent = "Ingresa un código de 4 dígitos."; return; }
+    const list = loadPersonnel().filter(p => p.code === code);
+    if (!list.length){
+      authErr.textContent = "Código no registrado. Agrega el personal en el gestor.";
+      return;
+    }
+    let person = null;
+    if (list.length === 1){
+      person = list[0];
+    } else {
+      // Desambiguación: permitir seleccionar
+      authPick.innerHTML = list.map((p,i) => `<option value="${i}">${escapeHtml(p.nombre)} — ${escapeHtml(p.rut)}</option>`).join("");
+      authPickWrap.style.display = "";
+      if (authPick.dataset._armed !== "1"){
+        authPick.dataset._armed = "1";
+        authPick.addEventListener("change", ()=>{});
+      }
+      // Si todavía no se eligió, no avanzamos hasta que presionen OK de nuevo
+      const idx = authPick.value ? parseInt(authPick.value,10) : 0;
+      person = list[idx];
+    }
+
+    // Estampar código en carteles
+    setPrintedCode(code);
+    // Registrar y lanzar impresión
+    const now=new Date();
+    const fecha_hora = now.toLocaleString("es-CL");
+    const fecha_iso = now.toISOString();
+    const carteles = readAllCarteles();
+    pushLog({ fecha_hora, fecha_iso, codigo: code, nombre: person?.nombre || "", rut: person?.rut || "", carteles });
+
+    hideAuth();
+    nativePrint();
+  }
+
+})();</script>
+
+
+<!-- === Modal: Contraseña para Gestor de Personal (oculta por defecto) === -->
+<div class="modal-overlay" id="pmPwdModal2">
+  <div class="modal-card">
+    <h3>Contraseña requerida</h3>
+    <div class="modal-grid">
+      <div>
+        <label for="pmPwd2">Contraseña</label>
+        <input id="pmPwd2" type="password" placeholder="••••••••" autocomplete="current-password">
+      </div>
+      <label style="display:flex;align-items:center;gap:8px">
+        <input type="checkbox" id="pmPwdShow2"> Mostrar contraseña
+      </label>
+      <div class="err" id="pmPwdErr2"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-sec" id="pmPwdCancel2">Cancelar</button>
+      <button class="btn-pri" id="pmPwdOK2">Confirmar</button>
+    </div>
+  </div>
+</div>
+
+
+<script>
+(function(){
+  const PWD_SECRET = "ELMISMISIMOCSM";
+  const $ = (id) => document.getElementById(id);
+
+  function openPwd2(){
+    const m = $("pmPwdModal2");
+    $("pmPwdErr2").textContent = "";
+    $("pmPwd2").value = "";
+    m.classList.add("show");
+    setTimeout(() => $("pmPwd2").focus(), 10);
+  }
+  function hidePwd2(){ $("pmPwdModal2").classList.remove("show"); }
+  function confirmPwd2(){
+    const v = (($("pmPwd2").value)||"").trim();
+    if (v !== PWD_SECRET){ $("pmPwdErr2").textContent = "Contraseña incorrecta."; return; }
+    hidePwd2();
+    if (typeof __showPM_inner === "function") __showPM_inner();
+  }
+  function togglePw2(){
+    const inp = $("pmPwd2");
+    inp.type = (inp.type === "password") ? "text" : "password";
+  }
+
+  // bind modal events
+  $("pmPwdCancel2").addEventListener("click", hidePwd2);
+  $("pmPwdOK2").addEventListener("click", confirmPwd2);
+  $("pmPwdShow2").addEventListener("change", togglePw2);
+  $("pmPwd2").addEventListener("keydown", (e) => { if (e.key === "Enter") confirmPwd2(); });
+
+  // Override showPM to gate with password modal
+  window.showPM = function(){ openPwd2(); };
+
+  // Rebind button explicitly
+  const btn = document.getElementById("btnOpenPM");
+  if (btn) btn.onclick = () => showPM();
+})();
+</script>
+
+
+<script>
+// --- Hard override to prevent old prompt gate ---
+(function(){
+  function hijackBtn(){
+    var btn = document.getElementById("btnOpenPM");
+    if (!btn) return;
+    var clone = btn.cloneNode(true);  // removes previous listeners
+    btn.parentNode.replaceChild(clone, btn);
+    clone.addEventListener("click", function(e){
+      e.preventDefault(); e.stopImmediatePropagation();
+      if (typeof showPM === "function") showPM();
+    });
+  }
+  if (document.readyState === "loading"){
+    document.addEventListener("DOMContentLoaded", hijackBtn);
+  } else {
+    hijackBtn();
+  }
+
+  // Capture keydown BEFORE older listeners and stop it there
+  window.addEventListener("keydown", function(e){
+    if (e.ctrlKey && e.altKey && (e.key === "p" || e.key === "P")){
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      if (typeof showPM === "function") showPM();
+    }
+  }, true);
+})();
+</script>
+
+
+<script>
+// === Patch v5: Ensure only modal password is used and, upon success, open Personnel Manager reliably ===
+(function(){
+  const SECRET = "ELMISMISIMOCSM";
+  const LS_PERSONNEL = "PERSONNEL_REG_V1";
+
+  function $(id){ return document.getElementById(id); }
+
+  // Fallback renderer in case internal renderPM() is not accessible
+  function renderPM_fallback(){
+    try {
+      const tbody = document.querySelector("#pmTable tbody");
+      if (!tbody) return;
+      // Clear
+      while (tbody.firstChild) tbody.removeChild(tbody.firstChild);
+      const list = JSON.parse(localStorage.getItem(LS_PERSONNEL) || "[]");
+      for (const p of list){
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td>${escapeHtml(p.nombre||"")}</td><td>${escapeHtml(p.rut||"")}</td><td>${escapeHtml(p.code||"")}</td>
+                        <td><button class="del">Eliminar</button></td>`;
+        tr.querySelector(".del").addEventListener("click", () => {
+          const after = (JSON.parse(localStorage.getItem(LS_PERSONNEL) || "[]")).filter(x => x.rut !== p.rut);
+          localStorage.setItem(LS_PERSONNEL, JSON.stringify(after));
+          renderPM_fallback();
+        });
+        tbody.appendChild(tr);
+      }
+    } catch(e){ /* no-op */ }
+  }
+  function escapeHtml(s){ return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+
+  function openPMDirect(){
+    renderPM_fallback(); // ensure visible data
+    const modal = $("pmModal");
+    if (modal) modal.classList.add("show");
+  }
+
+  function confirmPwd_v5(){
+    const err = $("pmPwdErr2");
+    const v = (($("pmPwd2")||{}).value||"").trim();
+    if (v !== SECRET){ if (err) err.textContent = "Contraseña incorrecta."; return; }
+    // hide pwd modal
+    const pwd = $("pmPwdModal2"); if (pwd) pwd.classList.remove("show");
+    openPMDirect();
+  }
+
+  // Capture handlers: replace default confirm to avoid duplicate listeners
+  const okBtn = $("pmPwdOK2");
+  if (okBtn){
+    okBtn.addEventListener("click", function(e){
+      e.preventDefault(); e.stopImmediatePropagation();
+      confirmPwd_v5();
+    }, true); // capture
+  }
+  const input = $("pmPwd2");
+  if (input){
+    input.addEventListener("keydown", function(e){
+      if (e.key === "Enter"){
+        e.preventDefault(); e.stopImmediatePropagation();
+        confirmPwd_v5();
+      }
+    }, true);
+  }
+
+  // Ensure clicking the floating button always opens our password modal
+  function forceShowPMModal(){
+    const m = $("pmPwdModal2");
+    const err = $("pmPwdErr2"); if (err) err.textContent = "";
+    const inp = $("pmPwd2"); if (inp) inp.value = "";
+    if (m) m.classList.add("show");
+    if (inp) setTimeout(() => inp.focus(), 10);
+  }
+  const btn = $("btnOpenPM");
+  if (btn){
+    btn.addEventListener("click", function(e){
+      e.preventDefault(); e.stopImmediatePropagation();
+      forceShowPMModal();
+    }, true);
+  }
+  // And hotkey
+  window.addEventListener("keydown", function(e){
+    if (e.ctrlKey && e.altKey && (e.key==="p"||e.key==="P")){
+      e.preventDefault(); e.stopImmediatePropagation();
+      forceShowPMModal();
+    }
+  }, true);
+
+})();
+</script>
+
+
+<script>
+// === Logo size slider (global) ===
+document.addEventListener('DOMContentLoaded', function(){
+  var panel = document.querySelector('.panel');
+  if (!panel || document.getElementById('logoSizeBox')) return;
+
+  var LS_KEY = 'LOGO_H_PX_V1';
+  var saved = parseInt(localStorage.getItem(LS_KEY)||'0',10);
+  if (!saved || isNaN(saved)) saved = 120;
+
+  var box = document.createElement('div');
+  box.className = 'box';
+  box.id = 'logoSizeBox';
+  box.innerHTML = ''+
+    '<label>Tamaño del logo</label>'+
+    '<div class="row" style="align-items:center">'+
+    '  <input id="sLogo" type="range" min="60" max="260" step="2" value="'+saved+'">'+
+    '  <span id="readLogo" class="muted" style="margin-left:8px">'+saved+' px</span>'+
+    '</div>'+
+    '<div class="muted" style="margin-top:4px">Afecta los 3 carteles. (Se guarda automáticamente)</div>';
+  panel.appendChild(box);
+
+  function px(n){ return n + 'px'; }
+  function applyLogoSize(v){
+    ['logo1','logo2','logo3'].forEach(function(id,i){
+      var el = document.getElementById(id);
+      if (!el){ el = document.querySelector('#slot'+(i+1)+' .logo, #slot'+(i+1)+' .brand'); }
+      if (el){
+        el.style.flex = '0 0 auto';
+        el.style.height = px(v);
+      }
+    });
+    var r = document.getElementById('readLogo'); if (r) r.textContent = v + ' px';
+  }
+  // Wire slider
+  var s = document.getElementById('sLogo');
+  if (s){
+    s.addEventListener('input', function(){
+      var v = parseInt(this.value||saved,10) || saved;
+      applyLogoSize(v);
+      localStorage.setItem(LS_KEY, String(v));
+    });
+  }
+  // Apply saved on load
+  applyLogoSize(saved);
+});
+</script>
+
+
+<script id="solo-cartel1-stable-boot">
+// Forzar SIEMPRE 1 cartel sin tocar funciones originales
+window.addEventListener('DOMContentLoaded', function(){
+  try { if (typeof state === 'object') state.count = 1; } catch(e){}
+  try { if (typeof applyInputs === 'function') applyInputs(); } catch(e){}
+  try { if (typeof applyAll === 'function') applyAll(); } catch(e){}
+});
+</script>
+
+
+<script>
+// === Default text size to 90px for Cartel 1 (robust, sin romper lógica previa) ===
+(function(){
+  function setDefault90() {
+    var changed = false;
+    var ids = ['sProd1','sProd2','sProd3'];
+    ids.forEach(function(id){
+      var el = document.getElementById(id);
+      if (el) {
+        try {
+          var v = parseInt(el.value, 10);
+          if (isNaN(v) || v !== 90) {
+            el.value = 90;
+            el.dispatchEvent(new Event('input', { bubbles: true }));
+            changed = true;
+          }
+        } catch(e){}
+      }
+    });
+    if (changed && typeof window.applyInputs === 'function') {
+      try { window.applyInputs(); } catch(e){}
+    }
+    return !!document.getElementById('sProd1');
+  }
+  function waitAndSet(retries){
+    if (setDefault90()) return;
+    if (retries <= 0) return;
+    setTimeout(function(){ waitAndSet(retries-1); }, 100);
+  }
+  window.addEventListener('load', function(){ waitAndSet(60); });
+})();
+</script>
+
+<script>
+// === Boot fix: forzar ajuste inicial sin que el usuario escriba nada ===
+(function(){
+  function kick(){
+    // asegurar valores de 90px en sliders si existen
+    ['sProd1','sProd2','sProd3'].forEach(function(id){
+      var el = document.getElementById(id);
+      if (el && String(el.value) !== '90'){
+        el.value = 90;
+        el.dispatchEvent(new Event('input', {bubbles:true}));
+      }
+    });
+    // aplicar lógica principal y forzar listeners de auto-ajuste
+    if (typeof window.applyInputs === 'function'){
+      try { window.applyInputs(); } catch(e){}
+    }
+    try { window.dispatchEvent(new Event('resize')); } catch(e){}
+  }
+  // Ejecutar varias veces para cubrir inicializaciones diferidas
+  window.addEventListener('load', function(){
+    var times = [0, 120, 300, 600, 1000];
+    times.forEach(function(t){ setTimeout(kick, t); });
+  });
+})();
+</script>
+
+<script id="offer-punct-align-script">
+(function(){
+  function wrapPunct(el){
+    if(!el || el.querySelector('.offer-inv,.offer-exc')) return;
+    var txt = (el.textContent || '').trim();
+    if(!txt) return;
+    var hasInv = txt.startsWith('¡');
+    var hasExc = txt.endsWith('!');
+    var core = txt;
+    if(hasInv) core = core.slice(1);
+    if(hasExc) core = core.slice(0, -1);
+    // Rebuild with spans
+    var frag = document.createDocumentFragment();
+    if(hasInv){
+      var inv = document.createElement('span');
+      inv.className = 'offer-inv';
+      inv.textContent = '¡';
+      frag.appendChild(inv);
+    }
+    frag.appendChild(document.createTextNode(core));
+    if(hasExc){
+      var exc = document.createElement('span');
+      exc.className = 'offer-exc';
+      exc.textContent = '!';
+      frag.appendChild(exc);
+    }
+    el.textContent = ''; // clear
+    el.appendChild(frag);
+  }
+
+  function applyAll(){
+    document.querySelectorAll('.offer-text').forEach(wrapPunct);
+  }
+
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', function(){
+      setTimeout(applyAll, 0);
+    });
+  } else {
+    setTimeout(applyAll, 0);
+  }
+})();
+</script>
+
+</body>
+</html>
+
+</template>
+
+<script>
+(function(){
+  const menu   = document.getElementById('menu');
+  const viewer = document.getElementById('viewer');
+  const frame  = document.getElementById('frame');
+  const btnG   = document.getElementById('btnG');
+  const btnP   = document.getElementById('btnP');
+  const btnBack= document.getElementById('btnBack');
+  const overlay= document.getElementById('personalOverlay');
+  const pf     = document.getElementById('personalFrame');
+
+  const LS_LOGS = "PRINT_LOGS_V3";
+  const LS_PERSONNEL = "PERSONNEL_REG_V1";
+  let current = null; // 'g' | 'p'
+
+  function tpl(id){ const t = document.getElementById(id); return t ? t.innerHTML : '<!doctype html><meta charset="utf-8"><title>Vacío</title>'; }
+
+  function setActive(which){
+    current = which;
+    const isG = which === 'g';
+    btnG.setAttribute('aria-current', isG ? 'true' : 'false');
+    btnP.setAttribute('aria-current', !isG ? 'true' : 'false');
+    btnG.setAttribute('aria-selected', isG ? 'true' : 'false');
+    btnP.setAttribute('aria-selected', !isG ? 'true' : 'false');
+    frame.srcdoc = isG ? tpl('TPL_G') : tpl('TPL_P');
+    location.hash = isG ? '#gondola' : '#pallet';
+  }
+
+  function enter(which){
+    menu.hidden = true; menu.style.display = 'none';
+    viewer.hidden = false;
+    document.documentElement.style.overflow = 'hidden';
+    document.body.style.overflow = 'hidden';
+    setActive(which);
+  }
+
+  function goMenu(){
+    viewer.hidden = true;
+    menu.hidden = false; menu.style.display = '';
+    document.documentElement.style.overflow = '';
+    document.body.style.overflow = '';
+    frame.srcdoc = '<!doctype html><meta charset=\"utf-8\">';
+    location.hash = '';
+  }
+
+  function openPersonal(){ overlay.hidden = false; pf.srcdoc = tpl('TPL_G'); }
+  function closePersonal(){ overlay.hidden = true; pf.srcdoc = '<!doctype html><meta charset=\"utf-8\">'; }
+
+  // === Main frame injection (hide personal button, square corners, tag origin) ===
+  frame.addEventListener('load', () => {
+    try {
+      const win = frame.contentWindow;
+      const doc = win.document;
+
+      const style = doc.createElement('style');
+      style.textContent = `#btnOpenPM{ display:none !important; }`;
+      doc.head.appendChild(style);
+      Array.from(doc.querySelectorAll('button, a, [role="button"], .btn')).forEach(el => { if (/personal/i.test(el.textContent || '')) el.style.display = 'none'; });
+
+      if (current === 'g') {
+        const style2 = doc.createElement('style');
+        style2.textContent = `.slot{ border-radius:0 !important; }`;
+        doc.head.appendChild(style2);
+      }
+
+      // Ensanchar campo Producto: apilar input debajo del label (box1/2/3)
+      try {
+        const style3 = doc.createElement('style');
+        style3.textContent = `
+          #box1 .row:first-child,
+          #box2 .row:first-child,
+          #box3 .row:first-child{ flex-direction:column !important; align-items:stretch !important; }
+          #box1 .row:first-child input,
+          #box2 .row:first-child input,
+          #box3 .row:first-child input{ width:100% !important; }
+        `;
+        doc.head.appendChild(style3);
+      } catch(e){}
+
+
+      const nativeSet = win.localStorage.setItem.bind(win.localStorage);
+      const ORIG = (current === 'g') ? 'GONDOLA' : 'PALLET';
+      win.localStorage.setItem = function(key, val){
+        try {
+          if (key === LS_LOGS){
+            let arr = [];
+            try { arr = JSON.parse(val || "[]"); } catch {}
+            if (Array.isArray(arr) && arr.length){
+              const last = arr[arr.length-1];
+              if (last && !('origen' in last)) last.origen = ORIG;
+              val = JSON.stringify(arr);
+            }
+          }
+        } catch(e){}
+        return nativeSet(key, val);
+      };
+    } catch(e){}
+  });
+
+  // === Overlay Personal: inject export/import buttons and behaviors ===
+  pf.addEventListener('load', () => {
+    try {
+      const win = pf.contentWindow;
+      const doc = win.document;
+
+      // Mostrar solo modales
+      const style = doc.createElement('style');
+      style.textContent = `
+        body > *:not(.modal-overlay){ display:none !important; }
+        .modal-overlay{ background: transparent !important; }
+        body{ background:transparent !important; }
+      `;
+      doc.head.appendChild(style);
+
+      // Abre el gestor
+      const btn = doc.getElementById('btnOpenPM'); if (btn) btn.click();
+
+      // ===== Insertar botones Exportar/Importar PERSONAL junto a #pmExport =====
+      function ensurePMButtons(){
+        const ref = doc.getElementById('pmExport');
+        if (!ref) return;
+        // Evitar duplicados
+        if (doc.getElementById('pmExportPersonal')) return;
+
+        // Clonar para mantener estilo
+        const expBtn = ref.cloneNode(true);
+        expBtn.id = 'pmExportPersonal';
+        expBtn.textContent = 'Exportar PERSONAL';
+
+        const impBtn = ref.cloneNode(true);
+        impBtn.id = 'pmImportPersonal';
+        impBtn.textContent = 'Importar PERSONAL';
+
+        // Insertar antes del botón Cerrar (#pmClose) si existe, si no, después de ref
+        const closeBtn = doc.getElementById('pmClose');
+        if (closeBtn && closeBtn.parentElement) {
+          closeBtn.parentElement.insertBefore(expBtn, closeBtn);
+          closeBtn.parentElement.insertBefore(impBtn, closeBtn);
+        } else {
+          ref.after(expBtn);
+          ref.after(impBtn);
+        }
+
+        // Input oculto para importar
+        const fileInput = doc.createElement('input');
+        fileInput.type = 'file'; fileInput.accept = 'application/json'; fileInput.id = 'pmImportFile'; fileInput.style.display = 'none';
+        doc.body.appendChild(fileInput);
+      }
+
+      // Llamar una vez ahora y también cuando se abra el modal por cualquier vía
+      ensurePMButtons();
+      doc.addEventListener('click', (ev) => {
+        if (ev.target && ev.target.id === 'btnOpenPM') setTimeout(ensurePMButtons, 0);
+      }, true);
+
+      // ===== Delegación de eventos =====
+      doc.addEventListener('click', (ev) => {
+        // 1) Export REGISTRO (unificado) - mantenemos lo que ya hacía #pmExport
+        if (ev.target.closest && ev.target.closest('#pmExport')){
+          ev.preventDefault(); ev.stopPropagation();
+          try {
+            let rows = [];
+            try { rows = JSON.parse(localStorage.getItem(LS_LOGS) || "[]"); } catch(e){ rows = []; }
+            if (!rows.length){ alert("No hay registros para exportar."); return; }
+            const DELIM = ";";
+            const header = ["fecha_hora","codigo","nombre","rut","slot","producto","detalle","precio","origen"];
+            const esc = v => `"${String(v??"").replace(/"/g,'""')}"`;
+            const out = ["\ufeff"+header.join(DELIM)];
+            for (const r of rows){
+              const origen = r.origen || "DESCONOCIDO";
+              const list = (r.carteles && r.carteles.length) ? r.carteles : [null];
+              for (const c of list){
+                out.push([esc(r.fecha_hora),esc(r.codigo),esc(r.nombre),esc(r.rut),
+                          esc(c?.slot ?? ""),esc(c?.producto ?? ""),esc(c?.detalle ?? ""),esc(c?.precio ?? ""),esc(origen)].join(DELIM));
+              }
+            }
+            const csv = out.join("\r\n");
+            const a = doc.createElement("a");
+            a.href = URL.createObjectURL(new Blob([csv], {type:"text/csv;charset=utf-8;"}));
+            const ts = new Date().toISOString().slice(0,19).replace(/[:T]/g,"-");
+            a.download = `registro_impresiones_unificado_${ts}.csv`;
+            doc.body.appendChild(a); a.click(); a.remove();
+          } catch(e){ alert("No se pudo exportar el registro unificado."); }
+          return;
+        }
+
+        // 2) Exportar PERSONAL
+        if (ev.target.closest && ev.target.closest('#pmExportPersonal')){
+          ev.preventDefault(); ev.stopPropagation();
+          try {
+            const data = localStorage.getItem(LS_PERSONNEL) || "[]";
+            const a = doc.createElement("a");
+            a.href = URL.createObjectURL(new Blob([data], {type:"application/json;charset=utf-8;"}));
+            const ts = new Date().toISOString().slice(0,19).replace(/[:T]/g,"-");
+            a.download = `personal_backup_${ts}.json`;
+            doc.body.appendChild(a); a.click(); a.remove();
+          } catch(e){ alert("No se pudo exportar el PERSONAL."); }
+          return;
+        }
+
+        // 3) Importar PERSONAL
+        if (ev.target.closest && ev.target.closest('#pmImportPersonal')){
+          ev.preventDefault(); ev.stopPropagation();
+          const fin = doc.getElementById('pmImportFile');
+          if (fin) fin.click();
+          return;
+        }
+      }, true);
+
+      // Leer archivo importado
+      doc.addEventListener('change', (ev) => {
+        const fin = ev.target;
+        if (!fin || fin.id !== 'pmImportFile' || !fin.files || !fin.files[0]) return;
+        const f = fin.files[0];
+        const reader = new FileReader();
+        reader.onload = () => {
+          try {
+            const txt = String(reader.result||"");
+            const arr = JSON.parse(txt);
+            if (!Array.isArray(arr)) throw new Error("Formato inválido");
+            // Validación mínima de cada objeto
+            const clean = arr.map(x => ({
+              nombre: String((x && x.nombre) || ""),
+              rut: String((x && x.rut) || ""),
+              code: String((x && x.code) || ""),
+            })).filter(x => x.rut);
+            localStorage.setItem(LS_PERSONNEL, JSON.stringify(clean));
+            // Refrescar automáticamente: recargar el iframe para reabrir el Gestor con datos nuevos
+            try { win.location.reload(); } catch{}
+            // limpiar input (por si cancela el reload)
+            try { fin.value = ""; } catch{}
+            /* sin alert bloqueante */
+          } catch(e){
+            alert("No se pudo importar el PERSONAL. Asegúrate de seleccionar un .json válido.");
+          }
+          fin.value = "";
+        };
+        reader.readAsText(f, "utf-8");
+      });
+
+      // Cerrar overlay al presionar "Cancelar" o "Cerrar" internos
+      ['authCancel','pmClose'].forEach(id => {
+        const el = doc.getElementById(id);
+        if (el) el.addEventListener('click', () => { try{ parent.postMessage({type:'pmClose'}, '*'); }catch(e){} });
+      });
+
+      // Auto-cierre si se cierran los modales
+      const isVisible = (el) => !!(el && (el.offsetParent !== null || el.getClientRects().length));
+      const checkAny = () => Array.from(doc.querySelectorAll('.modal-overlay')).some(isVisible);
+      const observer = new MutationObserver(() => { if (!checkAny()) { try{ parent.postMessage({type:'pmClose'}, '*'); }catch(e){} } });
+      observer.observe(doc.body, { childList:true, subtree:true, attributes:true, attributeFilter:['style','class'] });
+      doc.addEventListener('keydown', (ev) => { if (ev.key === 'Escape'){ try{ parent.postMessage({type:'pmClose'}, '*'); }catch(e){} } });
+
+    } catch(e){}
+  });
+
+  window.addEventListener('message', (ev) => { if (ev && ev.data && ev.data.type === 'pmClose') closePersonal(); });
+
+  // Navegación
+  document.querySelectorAll('[data-name]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const name = (btn.dataset.name || '').toLowerCase();
+      if (name.includes('pers')) { openPersonal(); return; }
+      enter(name.includes('góndola') || name.includes('gondola') ? 'g' : 'p');
+    });
+  });
+  btnG.addEventListener('click', () => setActive('g'));
+  btnP.addEventListener('click', () => setActive('p'));
+  btnBack.addEventListener('click', goMenu);
+
+  const h = (location.hash || '').toLowerCase();
+  if (h.includes('gondola')) enter('g');
+  else if (h.includes('pallet')) enter('p');
+})();
+</script>
+</body>
+</html>
