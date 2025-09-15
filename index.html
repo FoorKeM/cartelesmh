@@ -490,6 +490,24 @@ label[for="sPrice"]{ display:none !important; }
 }
 </style>
 
+
+<!-- printed-code-unify v1: tamaño del código para GÓNDOLA y PALLET -->
+<style>
+  .page .printed-code{
+    font-size: 5px !important;
+  }
+  @media print{
+    .page .printed-code{ font-size: 4pt !important; }
+  }
+</style>
+
+<!-- printed-code-size override vfinal -->
+<style>
+  .page .printed-code{ font-size: 5px !important; }
+  @media print{
+    .page .printed-code{ font-size: 4pt !important; }
+  }
+</style>
 </head>
 <body>
 <header>
@@ -558,7 +576,7 @@ const CONFIG = {
 };
 
 // ===== Lista de opciones del DETALLE =====
-const DETAIL_OPTIONS = ["AL DETALLE", "PRECIO UNICO", "PRECIO X KILO"];
+const DETAIL_OPTIONS = ["AL DETALLE", "PRECIO UNICO", "PRECIO X KILO", "PRECIO X 1/4"];
 const DEFAULT_DETAIL = "AL DETALLE";
 
 // Utils
@@ -616,7 +634,7 @@ function applyInputs(){
     $('#sign'+i).style.fontSize  = Math.max(8,(basePrice * state.sPrice * 0.45)) + 'px';
     $('#cu'+i).style.fontSize    = Math.max(8,(basePrice * state.sPrice * 0.40)) + 'px';
     // [Cambio v20b→v20c] Ocultar 'C/U' si el Detalle es 'PRECIO X KILO'
-    $('#cu'+i).style.display = (d[i-1] === 'PRECIO X KILO') ? 'none' : '';
+    $('#cu'+i).style.display = (d[i-1] === 'PRECIO X KILO', 'PRECIO X 1/4') ? 'none' : '';
   }
   // logo
   for(let i=1;i<=3;i++){
@@ -646,9 +664,9 @@ function initUI(){
 
   document.getElementById('printBtn').addEventListener('click', ()=>{ window.print(); });
   document.getElementById('resetBtn').addEventListener('click', ()=>{
-    $('#p1').value='CHULETA CERDO CENTRO PORCINADO FRIGO'; $('#r1').value='6890'; $('#d1').value=DEFAULT_DETAIL;
-    $('#p2').value='PECHUGA ENTERA POLLO ARIZTIA'; $('#r2').value='6490'; $('#d2').value=DEFAULT_DETAIL;
-    $('#p3').value='POLLO TRUTRO 1/4 ARIZTIA'; $('#r3').value='2990'; $('#d3').value=DEFAULT_DETAIL;
+    $('#p1').value='EJEMPLO'; $('#r1').value='990'; $('#d1').value=DEFAULT_DETAIL;
+    $('#p2').value='EJEMPLO'; $('#r2').value='990'; $('#d2').value=DEFAULT_DETAIL;
+    $('#p3').value='EJEMPLO'; $('#r3').value='990'; $('#d3').value=DEFAULT_DETAIL;
     state.sProd=1.30; state.sPrice=1.00; document.getElementById('sProd').value=state.sProd; document.getElementById('sPrice').value=state.sPrice;
     setCount(1); applyInputs();
   });
@@ -894,15 +912,15 @@ document.addEventListener('DOMContentLoaded', function(){
   wrap.id = 'perCartelSliders';
   wrap.innerHTML = ''
     + '<div class="sl" style="margin-top:8px"><span style="min-width:110px;display:inline-block">Cartel 1</span>'
-    + '  <input id="sProd1" type="range" min="12" max="90" step="1" value="46">'
+    + '  <input id="sProd1" type="range" min="12" max="150" step="1" value="46">'
     + '  <span id="readP1" class="muted" style="margin-left:8px">46 px</span>'
     + '</div>'
     + '<div class="sl" style="margin-top:6px"><span style="min-width:110px;display:inline-block">Cartel 2</span>'
-    + '  <input id="sProd2" type="range" min="12" max="90" step="1" value="46">'
+    + '  <input id="sProd2" type="range" min="12" max="150" step="1" value="46">'
     + '  <span id="readP2" class="muted" style="margin-left:8px">46 px</span>'
     + '</div>'
     + '<div class="sl" style="margin-top:6px"><span style="min-width:110px;display:inline-block">Cartel 3</span>'
-    + '  <input id="sProd3" type="range" min="12" max="90" step="1" value="46">'
+    + '  <input id="sProd3" type="range" min="12" max="150" step="1" value="46">'
     + '  <span id="readP3" class="muted" style="margin-left:8px">46 px</span>'
     + '</div>';
   box.appendChild(wrap);
@@ -2096,6 +2114,54 @@ label[for="sPrice"]{ display:none !important; }
   }
 </style>
 
+
+<!-- printed-code-unify v1: tamaño del código para GÓNDOLA y PALLET -->
+<style>
+  .page .printed-code{
+    font-size: 5px !important;
+  }
+  @media print{
+    .page .printed-code{ font-size: 4pt !important; }
+  }
+</style>
+
+<!-- pallet-spacing-override vfinal -->
+<style>
+  #slot1 .product, #slot2 .product, #slot3 .product{
+    align-items: center !important;
+    margin-bottom: -90px !important;
+  }
+  #slot1 .detail, #slot2 .detail, #slot3 .detail{
+    margin-top: -82px !important;
+  }
+</style>
+
+<!-- printed-code-size override vfinal -->
+<style>
+  .page .printed-code{ font-size: 5px !important; }
+  @media print{
+    .page .printed-code{ font-size: 4pt !important; }
+  }
+</style>
+
+<!-- pallet-printfix v1: corrige desborde en impresión sin tocar vista previa -->
+<style>
+  @media print{
+    /* 1) Micro-escala solo el bloque de PRODUCTO para que nunca cruce el marco */
+    #slot1 .product, #slot2 .product, #slot3 .product{
+      transform: scale(0.985);
+      transform-origin: top center;
+    }
+    /* 2) Ajuste fino de los gaps SOLO al imprimir (evita que -90/-82 provoquen desbordes) */
+    #slot1 .product, #slot2 .product, #slot3 .product{ margin-bottom: -84px !important; } /* antes -90 */
+    #slot1 .detail,  #slot2 .detail,  #slot3 .detail { margin-top: -78px !important; }   /* antes -82 */
+    /* 3) Evitar que cualquier pixel sobrante se vea fuera del borde */
+    .page{ overflow: hidden; }
+    /* Asegurar que los símbolos no empujen el layout en impresión */
+    #sign1,#sign2,#sign3{ line-height: 1 !important; }
+    #cu1,#cu2,#cu3{      line-height: 1 !important; }
+  }
+</style>
 </head>
 <body>
 <header>
@@ -2500,15 +2566,15 @@ document.addEventListener('DOMContentLoaded', function(){
   wrap.id = 'perCartelSliders';
   wrap.innerHTML = ''
     + '<div class="sl" style="margin-top:8px"><span style="min-width:110px;display:inline-block">Cartel 1</span>'
-    + '  <input id="sProd1" type="range" min="12" max="90" step="1" value="46">'
+    + '  <input id="sProd1" type="range" min="12" max="150" step="1" value="46">'
     + '  <span id="readP1" class="muted" style="margin-left:8px">46 px</span>'
     + '</div>'
     + '<div class="sl" style="margin-top:6px"><span style="min-width:110px;display:inline-block">Cartel 2</span>'
-    + '  <input id="sProd2" type="range" min="12" max="90" step="1" value="46">'
+    + '  <input id="sProd2" type="range" min="12" max="150" step="1" value="46">'
     + '  <span id="readP2" class="muted" style="margin-left:8px">46 px</span>'
     + '</div>'
     + '<div class="sl" style="margin-top:6px"><span style="min-width:110px;display:inline-block">Cartel 3</span>'
-    + '  <input id="sProd3" type="range" min="12" max="90" step="1" value="46">'
+    + '  <input id="sProd3" type="range" min="12" max="150" step="1" value="46">'
     + '  <span id="readP3" class="muted" style="margin-left:8px">46 px</span>'
     + '</div>';
   box.appendChild(wrap);
